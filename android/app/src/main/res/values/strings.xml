@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Home Affairs Citizen</string>
+    <string name="department_name">DEPARTMENT OF HOME AFFAIRS</string>
+    <string name="country_name">REPUBLIC OF SOUTH AFRICA</string>
+    <string name="demo_note">Demo experience · Your details are not sent or stored</string>
+</resources>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="forest">#0D4A36</color>
+    <color name="forest_dark">#083A2A</color>
+    <color name="green">#18734F</color>
+    <color name="gold">#D5AA55</color>
+    <color name="page">#F6F5F0</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="text_primary">#17231D</color>
+    <color name="text_secondary">#65726A</color>
+    <color name="line">#E2E7E1</color>
+    <color name="soft_green">#EAF3ED</color>
+    <color name="soft_gold">#F8F0DF</color>
+    <color name="danger">#B5473C</color>
+</resources>
