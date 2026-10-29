@@ -1,0 +1,62 @@
+{
+    "logs": [
+        {
+            "outputFile": "za.gov.dha.app-mergeDebugResources-2:/values/values.xml",
+            "map": [
+                {
+                    "source": "C:\\Users\\Admin\\Downloads\\Home Affairs Assistant App\\Citizen-Services-Portal\\android\\app\\src\\main\\res\\values\\styles.xml",
+                    "from": {
+                        "startLines": "2,24,30,12,36,51,18,66",
+                        "startColumns": "4,4,4,4,4,4,4,4",
+                        "startOffsets": "55,1020,1237,597,1448,2156,805,2867",
+                        "endLines": "10,28,34,16,49,64,22,74",
+                        "endColumns": "12,12,12,12,12,12,12,12",
+                        "endOffsets": "591,1231,1442,799,2150,2861,1014,3308"
+                    },
+                    "to": {
+                        "startLines": "18,27,32,37,42,56,70,75",
+                        "startColumns": "4,4,4,4,4,4,4,4",
+                        "startOffsets": "854,1395,1611,1821,2028,2735,3445,3659",
+                        "endLines": "26,31,36,41,55,69,74,83",
+                        "endColumns": "12,12,12,12,12,12,12,12",
+                        "endOffsets": "1390,1606,1816,2023,2730,3440,3654,4100"
+                    }
+                },
+                {
+                    "source": "C:\\Users\\Admin\\Downloads\\Home Affairs Assistant App\\Citizen-Services-Portal\\android\\app\\src\\main\\res\\values\\colors.xml",
+                    "from": {
+                        "startLines": "13,2,3,5,4,10,6,12,11,7,8,9",
+                        "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4",
+                        "startOffsets": "526,55,96,182,142,398,221,482,437,260,302,349",
+                        "endColumns": "40,40,45,38,39,38,38,43,44,41,46,48",
+                        "endOffsets": "562,91,137,216,177,432,255,521,477,297,344,393"
+                    },
+                    "to": {
+                        "startLines": "2,3,4,5,6,7,8,9,10,11,12,13",
+                        "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4",
+                        "startOffsets": "55,96,137,183,222,262,301,340,384,429,471,518",
+                        "endColumns": "40,40,45,38,39,38,38,43,44,41,46,48",
+                        "endOffsets": "91,132,178,217,257,296,335,379,424,466,513,562"
+                    }
+                },
+                {
+                    "source": "C:\\Users\\Admin\\Downloads\\Home Affairs Assistant App\\Citizen-Services-Portal\\android\\app\\src\\main\\res\\values\\strings.xml",
+                    "from": {
+                        "startLines": "2,4,5,3",
+                        "startColumns": "4,4,4,4",
+                        "startOffsets": "55,184,250,113",
+                        "endColumns": "57,65,91,70",
+                        "endOffsets": "108,245,337,179"
+                    },
+                    "to": {
+                        "startLines": "14,15,16,17",
+                        "startColumns": "4,4,4,4",
+                        "startOffsets": "567,625,691,783",
+                        "endColumns": "57,65,91,70",
+                        "endOffsets": "620,686,778,849"
+                    }
+                }
+            ]
+        }
+    ]
+}

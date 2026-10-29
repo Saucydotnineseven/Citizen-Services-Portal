@@ -1,0 +1,78 @@
+[
+    {
+        "merged": "za.gov.dha.app-debug-4:/layout_screen_notifications.xml.flat",
+        "source": "za.gov.dha.app-main-6:/layout/screen_notifications.xml"
+    },
+    {
+        "merged": "za.gov.dha.app-debug-4:/drawable_bg_primary_button.xml.flat",
+        "source": "za.gov.dha.app-main-6:/drawable/bg_primary_button.xml"
+    },
+    {
+        "merged": "za.gov.dha.app-debug-4:/layout_view_brand_header.xml.flat",
+        "source": "za.gov.dha.app-main-6:/layout/view_brand_header.xml"
+    },
+    {
+        "merged": "za.gov.dha.app-debug-4:/layout_screen_appointments.xml.flat",
+        "source": "za.gov.dha.app-main-6:/layout/screen_appointments.xml"
+    },
+    {
+        "merged": "za.gov.dha.app-debug-4:/layout_screen_service_form.xml.flat",
+        "source": "za.gov.dha.app-main-6:/layout/screen_service_form.xml"
+    },
+    {
+        "merged": "za.gov.dha.app-debug-4:/layout_screen_appointment_guide.xml.flat",
+        "source": "za.gov.dha.app-main-6:/layout/screen_appointment_guide.xml"
+    },
+    {
+        "merged": "za.gov.dha.app-debug-4:/drawable_bg_input.xml.flat",
+        "source": "za.gov.dha.app-main-6:/drawable/bg_input.xml"
+    },
+    {
+        "merged": "za.gov.dha.app-debug-4:/layout_screen_login.xml.flat",
+        "source": "za.gov.dha.app-main-6:/layout/screen_login.xml"
+    },
+    {
+        "merged": "za.gov.dha.app-debug-4:/drawable_bg_mark.xml.flat",
+        "source": "za.gov.dha.app-main-6:/drawable/bg_mark.xml"
+    },
+    {
+        "merged": "za.gov.dha.app-debug-4:/layout_screen_info.xml.flat",
+        "source": "za.gov.dha.app-main-6:/layout/screen_info.xml"
+    },
+    {
+        "merged": "za.gov.dha.app-debug-4:/layout_screen_appointment_request.xml.flat",
+        "source": "za.gov.dha.app-main-6:/layout/screen_appointment_request.xml"
+    },
+    {
+        "merged": "za.gov.dha.app-debug-4:/drawable_bg_soft_green.xml.flat",
+        "source": "za.gov.dha.app-main-6:/drawable/bg_soft_green.xml"
+    },
+    {
+        "merged": "za.gov.dha.app-debug-4:/layout_screen_applications.xml.flat",
+        "source": "za.gov.dha.app-main-6:/layout/screen_applications.xml"
+    },
+    {
+        "merged": "za.gov.dha.app-debug-4:/drawable_bg_card.xml.flat",
+        "source": "za.gov.dha.app-main-6:/drawable/bg_card.xml"
+    },
+    {
+        "merged": "za.gov.dha.app-debug-4:/layout_screen_dashboard.xml.flat",
+        "source": "za.gov.dha.app-main-6:/layout/screen_dashboard.xml"
+    },
+    {
+        "merged": "za.gov.dha.app-debug-4:/drawable_bg_secondary_button.xml.flat",
+        "source": "za.gov.dha.app-main-6:/drawable/bg_secondary_button.xml"
+    },
+    {
+        "merged": "za.gov.dha.app-debug-4:/layout_screen_recovery.xml.flat",
+        "source": "za.gov.dha.app-main-6:/layout/screen_recovery.xml"
+    },
+    {
+        "merged": "za.gov.dha.app-debug-4:/layout_screen_tracking.xml.flat",
+        "source": "za.gov.dha.app-main-6:/layout/screen_tracking.xml"
+    },
+    {
+        "merged": "za.gov.dha.app-debug-4:/layout_screen_signup.xml.flat",
+        "source": "za.gov.dha.app-main-6:/layout/screen_signup.xml"
+    }
+]
