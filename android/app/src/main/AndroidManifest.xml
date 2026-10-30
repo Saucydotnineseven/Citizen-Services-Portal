@@ -1,10 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Lets the app talk to the API over the internet. Must sit OUTSIDE the application tag -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:allowBackup="false"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:theme="@style/AppTheme">
+        android:theme="@style/AppTheme"
+        android:usesCleartextTraffic="true">
+        <!--
+            usesCleartextTraffic="true" allows plain http:// to your laptop while testing.
+            DELETE that line once BASE_URL in Api.java is your https:// Render address.
+        -->
+
         <activity
             android:name=".MainActivity"
             android:exported="true">
@@ -13,5 +23,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
     </application>
+
 </manifest>

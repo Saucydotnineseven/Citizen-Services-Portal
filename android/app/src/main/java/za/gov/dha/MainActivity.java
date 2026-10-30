@@ -3,19 +3,26 @@ package za.gov.dha;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.os.Bundle;
+import android.text.Editable;
 import android.text.InputType;
 import android.text.TextWatcher;
-import android.text.Editable;
 import android.view.View;
+import android.view.ViewGroup;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.ArrayAdapter;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 public class MainActivity extends Activity {
     private final Deque<String> screenHistory = new ArrayDeque<>();
@@ -23,11 +30,6 @@ public class MainActivity extends Activity {
     private String selectedService = "Passport";
     private String savedId = "";
     private String savedName = "";
-    private boolean demoApplicationSubmitted = false;
-    private String demoApplicationTitle = "";
-    private boolean appointmentRequested = false;
-    private String requestedOffice = "";
-    private String requestedDate = "";
     private boolean notificationsRead = false;
     private boolean passwordVisible = false;
 
@@ -114,6 +116,9 @@ public class MainActivity extends Activity {
                 setContentView(R.layout.screen_info);
                 setupInfo();
                 break;
+            case "official":
+                showOfficialScreen();   // built in code, no XML layout needed
+                break;
             case "login":
             default:
                 currentScreen = "login";
@@ -122,6 +127,10 @@ public class MainActivity extends Activity {
                 break;
         }
     }
+
+    // ------------------------------------------------------------------
+    // LOGIN (now checks the database through the API)
+    // ------------------------------------------------------------------
 
     private void setupLogin() {
         EditText idField = findViewById(R.id.loginId);
@@ -147,7 +156,7 @@ public class MainActivity extends Activity {
     private void signIn() {
         EditText id = findViewById(R.id.loginId);
         EditText password = findViewById(R.id.loginPassword);
-        String idValue = value(id);
+        final String idValue = value(id);
         String passwordValue = value(password);
         if (!isValidId(idValue)) {
             showError(id, "Enter a valid 13-digit ID number");
@@ -157,13 +166,30 @@ public class MainActivity extends Activity {
             showError(password, "Enter your password");
             return;
         }
-        savedId = idValue;
-        if (savedName.isEmpty()) savedName = "Citizen";
-        screenHistory.clear();
-        currentScreen = "dashboard";
-        renderScreen();
-        Toast.makeText(this, "Demo sign-in successful", Toast.LENGTH_SHORT).show();
+
+        setBusy(R.id.signInButton, true);   // stop double taps while waiting for the server
+        Toast.makeText(this, "Signing in... the first request can take a minute", Toast.LENGTH_SHORT).show();
+
+        Api.login(idValue, passwordValue, new Api.Callback<String[]>() {
+            @Override public void onSuccess(String[] result) {
+                // result[0] = role, result[1] = first name
+                savedId = idValue;
+                savedName = result[1].isEmpty() ? "Citizen" : result[1];
+                screenHistory.clear();
+                boolean staff = "OFFICIAL".equals(result[0]) || "ADMIN".equals(result[0]);
+                currentScreen = staff ? "official" : "dashboard";
+                renderScreen();
+            }
+            @Override public void onError(String message) {
+                setBusy(R.id.signInButton, false);
+                Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
+            }
+        });
     }
+
+    // ------------------------------------------------------------------
+    // SIGN UP (now saves the account in the database)
+    // ------------------------------------------------------------------
 
     private void createAccount() {
         EditText name = findViewById(R.id.signupName);
@@ -185,17 +211,40 @@ public class MainActivity extends Activity {
         } else if (!value(password).equals(value(confirm))) {
             showError(confirm, "Passwords do not match");
         } else {
-            savedId = value(id);
-            savedName = value(name);
-            new AlertDialog.Builder(this)
-                    .setTitle("Account details ready")
-                    .setMessage("This demo does not create or store an account. A secure account service can be connected later.")
-                    .setPositiveButton("Go to sign in", (dialog, which) -> {
-                        screenHistory.clear();
-                        currentScreen = "login";
-                        renderScreen();
-                    })
-                    .show();
+            // Split "Thandi Nkosi" into first name "Thandi" and last name "Nkosi"
+            String full = value(name);
+            String first = full;
+            String last = "";
+            int space = full.lastIndexOf(' ');
+            if (space > 0) {
+                first = full.substring(0, space).trim();
+                last = full.substring(space + 1).trim();
+            }
+            final String idValue = value(id);
+            final String firstName = first;
+
+            setBusy(R.id.signupSubmit, true);
+            Api.register(idValue, first, last, value(email), value(mobile), value(password), false,
+                    new Api.Callback<Boolean>() {
+                        @Override public void onSuccess(Boolean result) {
+                            savedId = idValue;
+                            savedName = firstName;
+                            new AlertDialog.Builder(MainActivity.this)
+                                    .setTitle("Account created")
+                                    .setMessage("Your account was saved in the prototype database. Sign in with your ID number and password.")
+                                    .setCancelable(false)
+                                    .setPositiveButton("Go to sign in", (dialog, which) -> {
+                                        screenHistory.clear();
+                                        currentScreen = "login";
+                                        renderScreen();
+                                    })
+                                    .show();
+                        }
+                        @Override public void onError(String message) {
+                            setBusy(R.id.signupSubmit, false);
+                            Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
+                        }
+                    });
         }
     }
 
@@ -215,6 +264,10 @@ public class MainActivity extends Activity {
                 })
                 .show();
     }
+
+    // ------------------------------------------------------------------
+    // DASHBOARD (unchanged)
+    // ------------------------------------------------------------------
 
     private void setupDashboard() {
         TextView greeting = findViewById(R.id.dashboardGreeting);
@@ -249,6 +302,10 @@ public class MainActivity extends Activity {
         navigateTo("service");
     }
 
+    // ------------------------------------------------------------------
+    // SERVICE FORM (now saves the application, then offers a simulated payment)
+    // ------------------------------------------------------------------
+
     private void setupServiceForm() {
         ((TextView) findViewById(R.id.serviceTitle)).setText(selectedService + " application");
         EditText applicantName = findViewById(R.id.formName);
@@ -276,6 +333,22 @@ public class MainActivity extends Activity {
         bind(R.id.submitApplication, this::submitApplication);
     }
 
+    /** Maps the option picked in the form to a service in the database. */
+    private String serviceIdFor(String option) {
+        switch (option) {
+            case "New passport":            return "passport_new";
+            case "Lost or stolen passport":
+            case "Damaged passport":        return "passport_renewal";
+            case "First-time Smart ID":     return "smart_id_first";
+            case "Lost or stolen card":
+            case "Damaged card":            return "smart_id_replacement";
+            case "Certificate amendment":   return "name_change";
+            case "Renewal":
+                return "Passport".equals(selectedService) ? "passport_renewal" : "smart_id_replacement";
+            default:                        return "certificate_request";  // birth, marriage, death certificates
+        }
+    }
+
     private void submitApplication() {
         EditText name = findViewById(R.id.formName);
         EditText id = findViewById(R.id.formId);
@@ -293,43 +366,109 @@ public class MainActivity extends Activity {
             showError(mobile, "Enter a valid mobile number");
             return;
         }
+
+        // Copy the values now, because the screen can change before the user taps the dialog button
+        final String option = String.valueOf(serviceType.getSelectedItem());
+        final String nameVal = value(name);
+        final String idVal = value(id);
+        final String mobileVal = value(mobile);
+
         new AlertDialog.Builder(this)
-                .setTitle("Review " + serviceType.getSelectedItem() + " application")
-                .setMessage("This demo will save a temporary application summary on this device only. It will not be sent to Home Affairs.")
+                .setTitle("Review " + option + " application")
+                .setMessage("This saves your application in the prototype database. It is NOT sent to the real Department of Home Affairs. Use fake details only.")
                 .setNegativeButton("Review details", null)
-                .setPositiveButton("Save demo application", (dialog, which) -> {
-                    demoApplicationSubmitted = true;
-                    demoApplicationTitle = String.valueOf(serviceType.getSelectedItem());
-                    Toast.makeText(this, "Demo application saved for this session", Toast.LENGTH_LONG).show();
-                    navigateTo("applications");
+                .setPositiveButton("Submit application", (dialog, which) -> {
+                    // These answers are stored with the application
+                    Map<String, String> form = new HashMap<>();
+                    form.put("Service type", option);
+                    form.put("Full name", nameVal);
+                    form.put("ID number", idVal);
+                    form.put("Mobile number", mobileVal);
+
+                    Toast.makeText(this, "Submitting...", Toast.LENGTH_SHORT).show();
+                    Api.submitApplication(serviceIdFor(option), form, new Api.Callback<Integer>() {
+                        @Override public void onSuccess(Integer appId) {
+                            askToPay(appId);
+                        }
+                        @Override public void onError(String message) {
+                            Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
+                        }
+                    });
                 })
                 .show();
     }
+
+    /** After submitting, offer the simulated fee payment. */
+    private void askToPay(final int appId) {
+        new AlertDialog.Builder(this)
+                .setTitle("Application #" + appId + " submitted")
+                .setMessage("Would you like to pay the application fee now? Payment is simulated, so no real money moves.")
+                .setCancelable(false)
+                .setPositiveButton("Pay now", (dialog, which) -> {
+                    Api.pay(appId, new Api.Callback<Double>() {
+                        @Override public void onSuccess(Double amount) {
+                            String text = amount == null
+                                    ? "No fee for this service"
+                                    : String.format(Locale.US, "Payment of R%.2f recorded (simulated)", amount);
+                            Toast.makeText(MainActivity.this, text, Toast.LENGTH_LONG).show();
+                        }
+                        @Override public void onError(String message) {
+                            Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
+                        }
+                    });
+                    navigateTo("applications");
+                })
+                .setNegativeButton("Pay later", (dialog, which) -> navigateTo("applications"))
+                .show();
+    }
+
+    // ------------------------------------------------------------------
+    // APPLICATIONS (shows the newest application and its stage from the database)
+    // ------------------------------------------------------------------
 
     private void setupApplications() {
         bind(R.id.applicationsBack, this::goBack);
         bind(R.id.openTracking, () -> navigateTo("tracking"));
         bind(R.id.newApplication, () -> openService("Passport"));
-        TextView title = findViewById(R.id.draftApplicationTitle);
-        TextView status = findViewById(R.id.draftApplicationStatus);
-        if (demoApplicationSubmitted) {
-            title.setText(demoApplicationTitle + " application");
-            status.setText("Saved in this session · Demo only");
-        }
+        final TextView title = findViewById(R.id.draftApplicationTitle);
+        final TextView status = findViewById(R.id.draftApplicationStatus);
+
+        Api.latestApplication(new Api.Callback<Api.AppInfo>() {
+            @Override public void onSuccess(Api.AppInfo info) {
+                if (!"applications".equals(currentScreen) || info == null) return;
+                title.setText(info.service + " application");
+                status.setText("Stage: " + info.stage + " · "
+                        + info.status.replace('_', ' ') + " · #" + info.id);
+            }
+            @Override public void onError(String message) {
+                Toast.makeText(MainActivity.this, message, Toast.LENGTH_SHORT).show();
+            }
+        });
     }
+
+    // ------------------------------------------------------------------
+    // APPOINTMENTS (saved in the database)
+    // ------------------------------------------------------------------
 
     private void setupAppointments() {
         bind(R.id.appointmentsBack, this::goBack);
         bind(R.id.appointmentGuide, () -> navigateTo("guide"));
         bind(R.id.requestAppointment, () -> navigateTo("appointmentRequest"));
-        TextView state = findViewById(R.id.appointmentState);
-        TextView date = findViewById(R.id.appointmentDate);
-        TextView location = findViewById(R.id.appointmentLocation);
-        if (appointmentRequested) {
-            state.setText("DEMO REQUEST SAVED");
-            date.setText(requestedDate);
-            location.setText(requestedOffice);
-        }
+        final TextView state = findViewById(R.id.appointmentState);
+        final TextView date = findViewById(R.id.appointmentDate);
+        final TextView location = findViewById(R.id.appointmentLocation);
+
+        Api.latestAppointment(new Api.Callback<Api.ApptInfo>() {
+            @Override public void onSuccess(Api.ApptInfo a) {
+                if (!"appointments".equals(currentScreen) || a == null) return;
+                state.setText(a.status);
+                date.setText(a.date);
+                location.setText(a.branch + " · " + a.service);
+            }
+            @Override public void onError(String message) {
+                Toast.makeText(MainActivity.this, message, Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     private void setupAppointmentRequest() {
@@ -342,22 +481,32 @@ public class MainActivity extends Activity {
         EditText date = findViewById(R.id.requestDate);
         EditText purpose = findViewById(R.id.requestPurpose);
         if (value(office).isEmpty()) {
-            showError(office, "Enter a preferred office");
+            showError(office, "Enter a preferred office, e.g. Johannesburg");
         } else if (value(date).isEmpty()) {
-            showError(date, "Enter a preferred date");
+            showError(date, "Enter a date as YYYY-MM-DD, e.g. 2026-11-20");
         } else if (value(purpose).isEmpty()) {
             showError(purpose, "Enter the service you need");
         } else {
-            appointmentRequested = true;
-            requestedOffice = value(office);
-            requestedDate = value(date);
-            new AlertDialog.Builder(this)
-                    .setTitle("Demo request saved")
-                    .setMessage("No real appointment has been booked. You can review this local demo request on the appointments page.")
-                    .setPositiveButton("View appointments", (dialog, which) -> navigateTo("appointments"))
-                    .show();
+            setBusy(R.id.submitAppointment, true);
+            Api.requestAppointment(value(office), value(date), value(purpose), new Api.Callback<Boolean>() {
+                @Override public void onSuccess(Boolean result) {
+                    new AlertDialog.Builder(MainActivity.this)
+                            .setTitle("Appointment saved")
+                            .setMessage("Your appointment was saved in the prototype database. No real Home Affairs appointment has been booked.")
+                            .setPositiveButton("View appointments", (dialog, which) -> navigateTo("appointments"))
+                            .show();
+                }
+                @Override public void onError(String message) {
+                    setBusy(R.id.submitAppointment, false);
+                    Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
+                }
+            });
         }
     }
+
+    // ------------------------------------------------------------------
+    // NOTIFICATIONS and INFO
+    // ------------------------------------------------------------------
 
     private void setupNotifications() {
         bind(R.id.notificationsBack, this::goBack);
@@ -377,19 +526,98 @@ public class MainActivity extends Activity {
         ((TextView) findViewById(R.id.infoTitle)).setText(privacy ? "Privacy and your data" : "Help and support");
         TextView body = findViewById(R.id.infoBody);
         body.setText(privacy
-                ? "This is an interface prototype. It does not send your personal information to a server or connect to a database. Details entered in forms are only used temporarily to demonstrate the screen flow. Before launch, the service needs a secure backend, a clear privacy notice, and approved data-handling practices."
-                : "For this prototype, all actions are demonstrations and no Home Affairs request is submitted. Sign-in accepts any 13-digit ID number with any non-empty password. For a real service, connect these screens to an approved secure backend. If you need help using the prototype, use the Back button to return to your services.");
+                ? "This is a student prototype. Your details are saved in a small test database to demonstrate how the service would work. Please use fake details only, such as a made-up ID number. Before launch, the service would need a production-grade secure backend, a clear privacy notice, and approved data-handling practices that follow POPIA."
+                : "This prototype is a demonstration and nothing is sent to the real Department of Home Affairs. Create an account with a 13-digit ID number (use a made-up one), then sign in with the same ID number and password. If you need help using the prototype, use the Back button to return to your services.");
         bind(R.id.infoBack, this::goBack);
         bind(R.id.infoContact, this::goBack);
     }
 
+    // ------------------------------------------------------------------
+    // OFFICIAL SCREEN (built in code; shown when an OFFICIAL account signs in)
+    // ------------------------------------------------------------------
+
+    private void showOfficialScreen() {
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(16), dp(40), dp(16), dp(16));
+        scroll.addView(box, new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        setContentView(scroll);
+        buildOfficialList(box);
+    }
+
+    /** Loads every application and shows an "Advance" button for each one. */
+    private void buildOfficialList(final LinearLayout box) {
+        box.removeAllViews();
+
+        TextView title = new TextView(this);
+        title.setText("Official dashboard");
+        title.setTextSize(22);
+        box.addView(title);
+
+        Button signOutButton = new Button(this);
+        signOutButton.setText("Sign out");
+        signOutButton.setOnClickListener(v -> signOut());
+        box.addView(signOutButton);
+
+        final TextView note = new TextView(this);
+        note.setText("Loading applications...");
+        box.addView(note);
+
+        Api.staffApplications(new Api.Callback<List<Api.StaffApp>>() {
+            @Override public void onSuccess(List<Api.StaffApp> list) {
+                if (!"official".equals(currentScreen)) return;
+                note.setText(list.isEmpty() ? "No applications yet." : list.size() + " application(s)");
+                for (final Api.StaffApp a : list) {
+                    TextView info = new TextView(MainActivity.this);
+                    info.setText("#" + a.id + "  " + a.service
+                            + "\nApplicant: " + a.applicant
+                            + "\nStage: " + a.stage + " (" + a.status + ")");
+                    info.setPadding(0, dp(16), 0, 0);
+                    box.addView(info);
+
+                    Button advance = new Button(MainActivity.this);
+                    advance.setText("Advance to next stage");
+                    advance.setOnClickListener(v -> Api.advance(a.id, new Api.Callback<Boolean>() {
+                        @Override public void onSuccess(Boolean ok) {
+                            buildOfficialList(box);   // reload to show the new stage
+                        }
+                        @Override public void onError(String message) {
+                            Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
+                        }
+                    }));
+                    box.addView(advance);
+                }
+            }
+            @Override public void onError(String message) {
+                note.setText(message);
+            }
+        });
+    }
+
+    // ------------------------------------------------------------------
+    // HELPERS
+    // ------------------------------------------------------------------
+
     private void signOut() {
+        Api.signOut();
         screenHistory.clear();
         currentScreen = "login";
         savedId = "";
         savedName = "";
         renderScreen();
         Toast.makeText(this, "You have signed out", Toast.LENGTH_SHORT).show();
+    }
+
+    private int dp(int value) {
+        return (int) (value * getResources().getDisplayMetrics().density);
+    }
+
+    /** Disables or enables a button while a server request is running. */
+    private void setBusy(int id, boolean busy) {
+        View view = findViewById(id);
+        if (view != null) view.setEnabled(!busy);
     }
 
     private void setVisible(int id, boolean visible) {

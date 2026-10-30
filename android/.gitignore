@@ -1,0 +1,9 @@
+.env
+**/.env
+ca.pem
+**/ca.pem
+node_modules/
+.gradle/
+.idea/
+build/
+**/build/
