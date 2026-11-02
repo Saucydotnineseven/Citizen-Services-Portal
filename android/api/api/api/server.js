@@ -12,6 +12,10 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(publicDir, 'index.html'));
 });
 
+app.get('/demo', (req, res) => {
+  res.sendFile(path.join(publicDir, 'demo.html'));
+});
+
 app.get('/download/app.apk', (req, res) => {
   res.download(path.join(publicDir, 'downloads', 'Home-Affairs-Citizen-Services-Demo.apk'));
 });
