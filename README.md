@@ -95,17 +95,16 @@ Most user-specific routes require a bearer token. The demo payment endpoint simu
 
 This prototype is not ready to process real citizen information. The Android account flow sends identity and contact fields to the live API; the API stores account data in MySQL and bcrypt-hashes passwords. Use made-up test data during presentations.
 
+Current code protections include user-scoped application and appointment queries, session-bound Android API requests, no-store API responses, a two-hour JWT lifetime, generic API errors, restricted browser CORS, and login/registration rate limits. The rate-limit counters are in memory on one Render process; use a shared store before running multiple service instances.
+
 Before any real deployment or collection of personal information:
 
 1. Get an appropriate security and privacy review, define a lawful purpose, minimize collected fields, set retention/deletion rules, and plan for incidents and data-subject requests. POPIA section 19 requires reasonable safeguards and regular verification/update of those safeguards.
-2. Restrict API access by role and by record; add login and registration rate limits, stronger staff authentication, token expiry/revocation, and monitoring.
-3. Restrict CORS to trusted web origins. CORS is not authentication; enforce authorization in every API route.
-4. Return generic errors to users and keep database/stack details in protected server logs.
-5. Use strong server-side secrets, least-privilege database credentials, encrypted backups, verified TLS, dependency updates, and a documented recovery process.
-6. Replace the debug APK with a signed release build and review how it is distributed. Do not collect real payment information in the prototype.
+2. Verify authorization for every user and record. Add stronger staff authentication, session revocation, monitoring, and security tests for cross-account access.
+3. Replace the debug APK with a signed release build and review how it is distributed. Do not collect real payment information in the prototype.
+4. Use strong server-side secrets, least-privilege database credentials, encrypted backups, verified TLS, dependency updates, and a documented recovery process.
 
 Useful references: [POPIA (Act 4 of 2013), especially section 19](https://www.justice.gov.za/legislation/acts/2013-004.pdf), [OWASP API Security Top 10](https://api-security.owasp.org/editions/2023/en/0x11-t10/), and [OWASP Password Storage guidance](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html).
-
 ## Repository workspace
 
 The repository root also contains a pnpm workspace used by the Replit scaffold (`artifacts/`, `lib/`, `scripts/`). The root `package.json` has workspace typecheck/build commands; these are separate from building/installing the Android app and from deploying `android/api` to Render.

@@ -3,8 +3,25 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const app = express();
-app.use(cors());            // allow requests from other origins
-app.use(express.json());    // read JSON request bodies
+app.disable('x-powered-by');
+
+const allowedOrigins = new Set([
+  'https://citizen-services-portal.onrender.com'
+]);
+
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+    return callback(null, false);
+  },
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+app.use(express.json({ limit: '50kb' }));
+app.use('/api', (req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  next();
+});
 
 const publicDir = path.join(__dirname, 'public');
 

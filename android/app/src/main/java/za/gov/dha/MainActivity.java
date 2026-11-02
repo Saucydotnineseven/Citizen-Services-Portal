@@ -32,6 +32,7 @@ public class MainActivity extends Activity {
     private String savedName = "";
     private boolean notificationsRead = false;
     private boolean passwordVisible = false;
+    private long sessionGeneration = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -57,9 +58,14 @@ public class MainActivity extends Activity {
             passwordVisible = false;
             renderScreen();
         } else if (!"login".equals(currentScreen)) {
-            currentScreen = "login";
-            renderScreen();
+            if (Api.token != null) {
+                signOut();
+            } else {
+                currentScreen = "login";
+                renderScreen();
+            }
         } else {
+            Api.signOut();
             finish();
         }
     }
@@ -167,11 +173,13 @@ public class MainActivity extends Activity {
             return;
         }
 
+        final long loginGeneration = ++sessionGeneration;
         setBusy(R.id.signInButton, true);   // stop double taps while waiting for the server
         Toast.makeText(this, "Signing in... the first request can take a minute", Toast.LENGTH_SHORT).show();
 
         Api.login(idValue, passwordValue, new Api.Callback<String[]>() {
             @Override public void onSuccess(String[] result) {
+                if (loginGeneration != sessionGeneration) return;
                 // result[0] = role, result[1] = first name
                 savedId = idValue;
                 savedName = result[1].isEmpty() ? "Citizen" : result[1];
@@ -181,6 +189,7 @@ public class MainActivity extends Activity {
                 renderScreen();
             }
             @Override public void onError(String message) {
+                if (loginGeneration != sessionGeneration) return;
                 setBusy(R.id.signInButton, false);
                 Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
             }
@@ -222,11 +231,13 @@ public class MainActivity extends Activity {
             }
             final String idValue = value(id);
             final String firstName = first;
+            final long registrationGeneration = sessionGeneration;
 
             setBusy(R.id.signupSubmit, true);
             Api.register(idValue, first, last, value(email), value(mobile), value(password), false,
                     new Api.Callback<Boolean>() {
                         @Override public void onSuccess(Boolean result) {
+                            if (registrationGeneration != sessionGeneration) return;
                             savedId = idValue;
                             savedName = firstName;
                             new AlertDialog.Builder(MainActivity.this)
@@ -241,6 +252,7 @@ public class MainActivity extends Activity {
                                     .show();
                         }
                         @Override public void onError(String message) {
+                            if (registrationGeneration != sessionGeneration) return;
                             setBusy(R.id.signupSubmit, false);
                             Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
                         }
@@ -386,11 +398,14 @@ public class MainActivity extends Activity {
                     form.put("Mobile number", mobileVal);
 
                     Toast.makeText(this, "Submitting...", Toast.LENGTH_SHORT).show();
+                    final long requestGeneration = sessionGeneration;
                     Api.submitApplication(serviceIdFor(option), form, new Api.Callback<Integer>() {
                         @Override public void onSuccess(Integer appId) {
+                            if (requestGeneration != sessionGeneration) return;
                             askToPay(appId);
                         }
                         @Override public void onError(String message) {
+                            if (requestGeneration != sessionGeneration) return;
                             Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
                         }
                     });
@@ -405,14 +420,17 @@ public class MainActivity extends Activity {
                 .setMessage("Would you like to pay the application fee now? Payment is simulated, so no real money moves.")
                 .setCancelable(false)
                 .setPositiveButton("Pay now", (dialog, which) -> {
+                    final long requestGeneration = sessionGeneration;
                     Api.pay(appId, new Api.Callback<Double>() {
                         @Override public void onSuccess(Double amount) {
+                            if (requestGeneration != sessionGeneration) return;
                             String text = amount == null
                                     ? "No fee for this service"
                                     : String.format(Locale.US, "Payment of R%.2f recorded (simulated)", amount);
                             Toast.makeText(MainActivity.this, text, Toast.LENGTH_LONG).show();
                         }
                         @Override public void onError(String message) {
+                            if (requestGeneration != sessionGeneration) return;
                             Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
                         }
                     });
@@ -432,15 +450,18 @@ public class MainActivity extends Activity {
         bind(R.id.newApplication, () -> openService("Passport"));
         final TextView title = findViewById(R.id.draftApplicationTitle);
         final TextView status = findViewById(R.id.draftApplicationStatus);
+        final long requestGeneration = sessionGeneration;
 
         Api.latestApplication(new Api.Callback<Api.AppInfo>() {
             @Override public void onSuccess(Api.AppInfo info) {
-                if (!"applications".equals(currentScreen) || info == null) return;
+                if (requestGeneration != sessionGeneration
+                        || !"applications".equals(currentScreen) || info == null) return;
                 title.setText(info.service + " application");
                 status.setText("Stage: " + info.stage + " · "
                         + info.status.replace('_', ' ') + " · #" + info.id);
             }
             @Override public void onError(String message) {
+                if (requestGeneration != sessionGeneration) return;
                 Toast.makeText(MainActivity.this, message, Toast.LENGTH_SHORT).show();
             }
         });
@@ -457,15 +478,18 @@ public class MainActivity extends Activity {
         final TextView state = findViewById(R.id.appointmentState);
         final TextView date = findViewById(R.id.appointmentDate);
         final TextView location = findViewById(R.id.appointmentLocation);
+        final long requestGeneration = sessionGeneration;
 
         Api.latestAppointment(new Api.Callback<Api.ApptInfo>() {
             @Override public void onSuccess(Api.ApptInfo a) {
-                if (!"appointments".equals(currentScreen) || a == null) return;
+                if (requestGeneration != sessionGeneration
+                        || !"appointments".equals(currentScreen) || a == null) return;
                 state.setText(a.status);
                 date.setText(a.date);
                 location.setText(a.branch + " · " + a.service);
             }
             @Override public void onError(String message) {
+                if (requestGeneration != sessionGeneration) return;
                 Toast.makeText(MainActivity.this, message, Toast.LENGTH_SHORT).show();
             }
         });
@@ -488,8 +512,10 @@ public class MainActivity extends Activity {
             showError(purpose, "Enter the service you need");
         } else {
             setBusy(R.id.submitAppointment, true);
+            final long requestGeneration = sessionGeneration;
             Api.requestAppointment(value(office), value(date), value(purpose), new Api.Callback<Boolean>() {
                 @Override public void onSuccess(Boolean result) {
+                    if (requestGeneration != sessionGeneration) return;
                     new AlertDialog.Builder(MainActivity.this)
                             .setTitle("Appointment saved")
                             .setMessage("Your appointment was saved in the prototype database. No real Home Affairs appointment has been booked.")
@@ -497,6 +523,7 @@ public class MainActivity extends Activity {
                             .show();
                 }
                 @Override public void onError(String message) {
+                    if (requestGeneration != sessionGeneration) return;
                     setBusy(R.id.submitAppointment, false);
                     Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
                 }
@@ -564,10 +591,12 @@ public class MainActivity extends Activity {
         final TextView note = new TextView(this);
         note.setText("Loading applications...");
         box.addView(note);
+        final long requestGeneration = sessionGeneration;
 
         Api.staffApplications(new Api.Callback<List<Api.StaffApp>>() {
             @Override public void onSuccess(List<Api.StaffApp> list) {
-                if (!"official".equals(currentScreen)) return;
+                if (requestGeneration != sessionGeneration
+                        || !"official".equals(currentScreen)) return;
                 note.setText(list.isEmpty() ? "No applications yet." : list.size() + " application(s)");
                 for (final Api.StaffApp a : list) {
                     TextView info = new TextView(MainActivity.this);
@@ -579,11 +608,15 @@ public class MainActivity extends Activity {
 
                     Button advance = new Button(MainActivity.this);
                     advance.setText("Advance to next stage");
+                    final long actionGeneration = sessionGeneration;
                     advance.setOnClickListener(v -> Api.advance(a.id, new Api.Callback<Boolean>() {
                         @Override public void onSuccess(Boolean ok) {
+                            if (actionGeneration != sessionGeneration
+                                    || !"official".equals(currentScreen)) return;
                             buildOfficialList(box);   // reload to show the new stage
                         }
                         @Override public void onError(String message) {
+                            if (actionGeneration != sessionGeneration) return;
                             Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
                         }
                     }));
@@ -591,6 +624,7 @@ public class MainActivity extends Activity {
                 }
             }
             @Override public void onError(String message) {
+                if (requestGeneration != sessionGeneration) return;
                 note.setText(message);
             }
         });
@@ -601,6 +635,7 @@ public class MainActivity extends Activity {
     // ------------------------------------------------------------------
 
     private void signOut() {
+        sessionGeneration++;
         Api.signOut();
         screenHistory.clear();
         currentScreen = "login";

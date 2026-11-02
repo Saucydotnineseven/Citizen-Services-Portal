@@ -4,16 +4,36 @@
 const pool = require('./db');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { loginIpLimit, loginAccountLimit, registrationLimit } = require('./security');
+
+function sendServerError(req, res, error) {
+  console.error('API request failed', {
+    method: req.method,
+    path: req.path,
+    code: error && error.code ? error.code : 'UNKNOWN'
+  });
+  return res.status(500).json({
+    error: 'The request could not be completed. Please try again later.'
+  });
+}
 
 // Only allows logged-in users through
 function requireLogin(req, res, next) {
-  const token = (req.headers.authorization || '').replace('Bearer ', '');
+  const authorization = req.get('authorization') || '';
+  const match = /^Bearer ([^\s]+)$/.exec(authorization);
+
+  if (!match || !process.env.JWT_SECRET) {
+    return res.status(401).json({ error: 'Please log in' });
+  }
 
   try {
-    req.user = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = jwt.verify(match[1], process.env.JWT_SECRET, {
+      algorithms: ['HS256']
+    });
+    res.set('Cache-Control', 'no-store');
     next();
   } catch (e) {
-    res.status(401).json({ error: 'Please log in' });
+    return res.status(401).json({ error: 'Please log in' });
   }
 }
 
@@ -34,7 +54,7 @@ module.exports = function (app) {
       await pool.query('SELECT 1');
       res.json({ database: 'connected' });
     } catch (e) {
-      res.status(500).json({ database: 'error', message: e.message });
+      sendServerError(req, res, e);
     }
   });
 
@@ -50,12 +70,12 @@ module.exports = function (app) {
 
       res.json(rows);
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      return sendServerError(req, res, e);
     }
   });
 
   // ---------- Register ----------
-  app.post('/api/register', async (req, res) => {
+  app.post('/api/register', registrationLimit, async (req, res) => {
     const {
       idNumber,
       firstName,
@@ -106,18 +126,19 @@ module.exports = function (app) {
         });
       }
 
-      res.status(500).json({ error: e.message });
+      return sendServerError(req, res, e);
     }
   });
 
   // ---------- Login ----------
-  app.post('/api/login', async (req, res) => {
+  app.post('/api/login', loginIpLimit, loginAccountLimit, async (req, res) => {
     try {
       const { idNumber, email, password } = req.body;
       const who = idNumber || email || '';
 
       const [rows] = await pool.query(
-        'SELECT * FROM users WHERE id_number = ? OR email = ?',
+        `SELECT user_id, first_name, role, password_hash
+         FROM users WHERE id_number = ? OR email = ?`,
         [who, who]
       );
 
@@ -132,7 +153,7 @@ module.exports = function (app) {
       const token = jwt.sign(
         { userId: user.user_id, role: user.role },
         process.env.JWT_SECRET,
-        { expiresIn: '7d' }
+        { expiresIn: '2h', algorithm: 'HS256' }
       );
 
       res.json({
@@ -143,7 +164,7 @@ module.exports = function (app) {
       });
 
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      return sendServerError(req, res, e);
     }
   });
 
@@ -160,7 +181,7 @@ module.exports = function (app) {
       res.json(rows[0] || null);
 
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      return sendServerError(req, res, e);
     }
   });
 
@@ -218,7 +239,7 @@ module.exports = function (app) {
 
     } catch (e) {
       if (conn) await conn.rollback();
-      res.status(500).json({ error: e.message });
+      return sendServerError(req, res, e);
 
     } finally {
       if (conn) conn.release();
@@ -252,7 +273,7 @@ module.exports = function (app) {
       res.json(apps);
 
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      return sendServerError(req, res, e);
     }
   });
 
@@ -266,7 +287,7 @@ module.exports = function (app) {
       res.json(rows);
 
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      return sendServerError(req, res, e);
     }
   });
 
@@ -291,7 +312,7 @@ module.exports = function (app) {
         });
       }
 
-      res.status(500).json({ error: e.message });
+      return sendServerError(req, res, e);
     }
   });
 
@@ -311,7 +332,7 @@ module.exports = function (app) {
       res.json(rows);
 
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      return sendServerError(req, res, e);
     }
   });
 
@@ -357,7 +378,7 @@ module.exports = function (app) {
       });
 
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      return sendServerError(req, res, e);
     }
   });
 
@@ -372,7 +393,7 @@ module.exports = function (app) {
       res.json({ faceVerified: true });
 
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      return sendServerError(req, res, e);
     }
   });
 
@@ -390,7 +411,7 @@ module.exports = function (app) {
       res.json(rows);
 
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      return sendServerError(req, res, e);
     }
   });
 
@@ -410,7 +431,7 @@ module.exports = function (app) {
       res.json(rows);
 
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      return sendServerError(req, res, e);
     }
   });
 
@@ -495,7 +516,7 @@ module.exports = function (app) {
 
     } catch (e) {
       if (conn) await conn.rollback();
-      res.status(500).json({ error: e.message });
+      return sendServerError(req, res, e);
 
     } finally {
       if (conn) conn.release();
@@ -557,10 +578,7 @@ module.exports = function (app) {
         });
       }
 
-      res.status(400).json({
-        error: 'Could not book that date. Check it is a real date',
-        details: e.message
-      });
+      return sendServerError(req, res, e);
     }
   });
 
