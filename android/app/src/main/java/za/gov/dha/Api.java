@@ -14,6 +14,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +50,22 @@ public class Api {
     public static class StaffApp {
         public int id;
         public String service, applicant, status, stage;
+    }
+
+    public static class AdminUser {
+        public int id;
+        public String firstName, lastName, emailMasked, idNumberMasked;
+        public String role, status, createdAt;
+    }
+
+    public static class AdminUserPage {
+        public List<AdminUser> users = new ArrayList<>();
+        public int offset, limit;
+        public boolean hasMore;
+    }
+
+    public static class AuditEntry {
+        public String action, createdAt, actor, target;
     }
 
     private static final ExecutorService pool =
@@ -110,7 +127,7 @@ public class Api {
         }
 
         try {
-            if ("POST".equals(method)) {
+            if ("POST".equals(method) || "PATCH".equals(method)) {
                 c.setDoOutput(true);
 
                 byte[] data = (
@@ -417,6 +434,85 @@ public class Api {
 
             return true;
 
+        }, cb);
+    }
+
+    public static void adminUsers(
+            final String search,
+            final int offset,
+            Callback<AdminUserPage> cb) {
+
+        final String requestToken = token;
+        run(() -> {
+            String encoded = URLEncoder.encode(search == null ? "" : search, "UTF-8");
+            JSONObject json = new JSONObject(request(
+                    "GET",
+                    "/api/admin/users?search=" + encoded + "&offset=" + Math.max(0, offset),
+                    null,
+                    requestToken
+            ));
+
+            AdminUserPage page = new AdminUserPage();
+            page.offset = json.optInt("offset");
+            page.limit = json.optInt("limit");
+            page.hasMore = json.optBoolean("hasMore");
+            JSONArray users = json.optJSONArray("users");
+            if (users != null) {
+                for (int i = 0; i < users.length(); i++) {
+                    JSONObject o = users.getJSONObject(i);
+                    AdminUser u = new AdminUser();
+                    u.id = o.getInt("id");
+                    u.firstName = o.optString("firstName");
+                    u.lastName = o.optString("lastName");
+                    u.emailMasked = o.optString("emailMasked");
+                    u.idNumberMasked = o.optString("idNumberMasked");
+                    u.role = o.optString("role");
+                    u.status = o.optString("status");
+                    u.createdAt = o.optString("createdAt");
+                    page.users.add(u);
+                }
+            }
+            return page;
+        }, cb);
+    }
+
+    public static void setUserStatus(
+            final int userId,
+            final String status,
+            Callback<Boolean> cb) {
+
+        final String requestToken = token;
+        run(() -> {
+            JSONObject body = new JSONObject().put("status", status);
+            request(
+                    "POST",
+                    "/api/admin/users/" + userId + "/status",
+                    body,
+                    requestToken
+            );
+            return true;
+        }, cb);
+    }
+
+    public static void adminAudit(Callback<List<AuditEntry>> cb) {
+        final String requestToken = token;
+        run(() -> {
+            JSONArray rows = new JSONArray(request(
+                    "GET", "/api/admin/audit", null, requestToken
+            ));
+            List<AuditEntry> entries = new ArrayList<>();
+            for (int i = 0; i < rows.length(); i++) {
+                JSONObject o = rows.getJSONObject(i);
+                AuditEntry a = new AuditEntry();
+                a.action = o.optString("action");
+                a.createdAt = o.optString("created_at");
+                a.actor = o.optString("actor_first_name") + " "
+                        + o.optString("actor_last_name");
+                a.target = o.optString("target_first_name") + " "
+                        + o.optString("target_last_name");
+                entries.add(a);
+            }
+            return entries;
         }, cb);
     }
 }

@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS users (
   phone         VARCHAR(15),
   password_hash VARCHAR(255) NOT NULL,
   role          ENUM('CITIZEN','FOREIGN_NATIONAL','OFFICIAL','ADMIN') NOT NULL DEFAULT 'CITIZEN',
+  account_status ENUM('ACTIVE','SUSPENDED') NOT NULL DEFAULT 'ACTIVE',
   face_verified TINYINT(1) NOT NULL DEFAULT 0,
   created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -122,6 +123,16 @@ CREATE TABLE IF NOT EXISTS appeals (
   submission_date DATETIME DEFAULT CURRENT_TIMESTAMP,
   outcome         VARCHAR(50) DEFAULT 'PENDING',
   FOREIGN KEY (application_id) REFERENCES applications(application_id)
+);
+
+CREATE TABLE IF NOT EXISTS admin_audit_log (
+  audit_id       INT AUTO_INCREMENT PRIMARY KEY,
+  actor_user_id  INT NOT NULL,
+  target_user_id INT NULL,
+  action         VARCHAR(40) NOT NULL,
+  created_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (actor_user_id) REFERENCES users(user_id),
+  FOREIGN KEY (target_user_id) REFERENCES users(user_id) ON DELETE SET NULL
 );
 
 -- ================= SEED DATA (prototype values, NOT official fees) =================

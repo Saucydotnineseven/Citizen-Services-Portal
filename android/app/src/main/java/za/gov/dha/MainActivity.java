@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.os.Bundle;
 import android.text.Editable;
+import android.text.InputFilter;
 import android.text.InputType;
 import android.text.TextWatcher;
 import android.view.View;
@@ -32,6 +33,10 @@ public class MainActivity extends Activity {
     private String savedName = "";
     private boolean notificationsRead = false;
     private boolean passwordVisible = false;
+    private boolean staffLoginMode = false;
+    private String officialTab = "applications";
+    private String adminUserSearch = "";
+    private int adminUserOffset = 0;
     private long sessionGeneration = 0;
 
     @Override
@@ -64,6 +69,10 @@ public class MainActivity extends Activity {
                 currentScreen = "login";
                 renderScreen();
             }
+        } else if (staffLoginMode) {
+            staffLoginMode = false;
+            savedId = "";
+            renderScreen();
         } else {
             Api.signOut();
             finish();
@@ -140,11 +149,54 @@ public class MainActivity extends Activity {
 
     private void setupLogin() {
         EditText idField = findViewById(R.id.loginId);
+        TextView title = findViewById(R.id.loginTitle);
+        TextView subtitle = findViewById(R.id.loginSubtitle);
+        TextView identifierLabel = findViewById(R.id.loginIdentifierLabel);
+        TextView staffTitle = findViewById(R.id.staffPanelTitle);
+        TextView staffDescription = findViewById(R.id.staffPanelDescription);
+        Button staffButton = findViewById(R.id.staffAccessButton);
+
+        if (staffLoginMode) {
+            title.setText("Staff and admin sign in");
+            subtitle.setText("Authorized Home Affairs personnel only.");
+            identifierLabel.setText("Work email or ID number");
+            idField.setHint("Enter your work email or ID number");
+            idField.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
+            idField.setFilters(new InputFilter[0]);
+            staffTitle.setText("Citizen services sign in");
+            staffDescription.setText("Return to the citizen account sign-in.");
+            staffButton.setText("Back to citizen sign in");
+            ((Button) findViewById(R.id.signInButton)).setText("Open staff portal");
+            setVisible(R.id.loginAccountActions, false);
+            setVisible(R.id.loginNewUserNote, false);
+            setVisible(R.id.createAccountButton, false);
+        } else {
+            title.setText("Welcome back");
+            subtitle.setText("Sign in to manage your Home Affairs services securely.");
+            identifierLabel.setText("South African ID number");
+            idField.setHint("13-digit ID number");
+            idField.setInputType(InputType.TYPE_CLASS_NUMBER);
+            idField.setFilters(new InputFilter[]{new InputFilter.LengthFilter(13)});
+            staffTitle.setText("Home Affairs staff");
+            staffDescription.setText("Authorized staff can review applications. Administrator accounts are provisioned securely.");
+            staffButton.setText("Staff and admin sign in");
+            ((Button) findViewById(R.id.signInButton)).setText("Sign in");
+            setVisible(R.id.loginAccountActions, true);
+            setVisible(R.id.loginNewUserNote, true);
+            setVisible(R.id.createAccountButton, true);
+        }
+
         if (!savedId.isEmpty()) idField.setText(savedId);
         bind(R.id.createAccountButton, () -> navigateTo("signup"));
         bind(R.id.forgotButton, () -> navigateTo("recovery"));
         bind(R.id.loginHelpButton, () -> navigateTo("help"));
         bind(R.id.signInButton, this::signIn);
+        bind(R.id.staffAccessButton, () -> {
+            staffLoginMode = !staffLoginMode;
+            savedId = "";
+            passwordVisible = false;
+            renderScreen();
+        });
         bind(R.id.togglePassword, () -> {
             EditText password = findViewById(R.id.loginPassword);
             if (password == null) return;
@@ -164,8 +216,12 @@ public class MainActivity extends Activity {
         EditText password = findViewById(R.id.loginPassword);
         final String idValue = value(id);
         String passwordValue = value(password);
-        if (!isValidId(idValue)) {
+        if (!staffLoginMode && !isValidId(idValue)) {
             showError(id, "Enter a valid 13-digit ID number");
+            return;
+        }
+        if (staffLoginMode && idValue.isEmpty()) {
+            showError(id, "Enter your work email or ID number");
             return;
         }
         if (passwordValue.isEmpty()) {
@@ -181,10 +237,22 @@ public class MainActivity extends Activity {
             @Override public void onSuccess(String[] result) {
                 if (loginGeneration != sessionGeneration) return;
                 // result[0] = role, result[1] = first name
+                boolean staff = "OFFICIAL".equals(result[0]) || "ADMIN".equals(result[0]);
+                if (staffLoginMode != staff) {
+                    Api.signOut();
+                    sessionGeneration++;
+                    setBusy(R.id.signInButton, false);
+                    Toast.makeText(MainActivity.this,
+                            staffLoginMode ? "Use an authorized staff or admin account" : "Please use the staff sign-in panel",
+                            Toast.LENGTH_LONG).show();
+                    return;
+                }
                 savedId = idValue;
                 savedName = result[1].isEmpty() ? "Citizen" : result[1];
                 screenHistory.clear();
-                boolean staff = "OFFICIAL".equals(result[0]) || "ADMIN".equals(result[0]);
+                officialTab = "applications";
+                adminUserSearch = "";
+                adminUserOffset = 0;
                 currentScreen = staff ? "official" : "dashboard";
                 renderScreen();
             }
@@ -565,31 +633,75 @@ public class MainActivity extends Activity {
 
     private void showOfficialScreen() {
         ScrollView scroll = new ScrollView(this);
+        scroll.setBackgroundColor(getResources().getColor(R.color.page));
+        scroll.setFillViewport(true);
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
-        box.setPadding(dp(16), dp(40), dp(16), dp(16));
+        box.setPadding(dp(24), dp(26), dp(24), dp(30));
         scroll.addView(box, new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         setContentView(scroll);
         buildOfficialList(box);
     }
 
-    /** Loads every application and shows an "Advance" button for each one. */
+    /** Staff dashboard. Account controls are shown only to database-verified ADMIN users. */
     private void buildOfficialList(final LinearLayout box) {
         box.removeAllViews();
+        final boolean admin = "ADMIN".equals(Api.role);
+
+        getLayoutInflater().inflate(R.layout.view_brand_header, box, true);
+        View accent = new View(this);
+        accent.setBackgroundColor(getResources().getColor(R.color.gold));
+        LinearLayout.LayoutParams accentParams = new LinearLayout.LayoutParams(dp(52), dp(3));
+        accentParams.topMargin = dp(28);
+        box.addView(accent, accentParams);
 
         TextView title = new TextView(this);
-        title.setText("Official dashboard");
-        title.setTextSize(22);
+        title.setText(admin ? "Administrator dashboard" : "Staff dashboard");
+        title.setTextColor(getResources().getColor(R.color.forest));
+        title.setTextSize(26);
+        title.setTypeface(null, android.graphics.Typeface.BOLD);
         box.addView(title);
+
+        TextView subtitle = new TextView(this);
+        subtitle.setText(admin
+                ? "Manage applications and citizen accounts. Account identifiers are masked."
+                : "Review applications assigned to Home Affairs staff.");
+        subtitle.setTextColor(getResources().getColor(R.color.text_secondary));
+        subtitle.setPadding(0, dp(4), 0, dp(14));
+        box.addView(subtitle);
 
         Button signOutButton = new Button(this);
         signOutButton.setText("Sign out");
+        signOutButton.setAllCaps(false);
+        signOutButton.setTextColor(getResources().getColor(R.color.forest));
+        signOutButton.setBackgroundResource(R.drawable.bg_secondary_button);
         signOutButton.setOnClickListener(v -> signOut());
         box.addView(signOutButton);
 
+        if (admin) {
+            LinearLayout tabs = new LinearLayout(this);
+            tabs.setOrientation(LinearLayout.HORIZONTAL);
+            tabs.setPadding(0, dp(12), 0, dp(12));
+            addTab(tabs, "Applications", "applications");
+            addTab(tabs, "User accounts", "users");
+            addTab(tabs, "Audit log", "audit");
+            box.addView(tabs);
+        }
+
+        if (admin && "users".equals(officialTab)) {
+            buildAdminUsers(box);
+            return;
+        }
+        if (admin && "audit".equals(officialTab)) {
+            buildAdminAudit(box);
+            return;
+        }
+
         final TextView note = new TextView(this);
         note.setText("Loading applications...");
+        note.setTextColor(getResources().getColor(R.color.text_secondary));
+        note.setPadding(0, dp(12), 0, dp(8));
         box.addView(note);
         final long requestGeneration = sessionGeneration;
 
@@ -599,15 +711,17 @@ public class MainActivity extends Activity {
                         || !"official".equals(currentScreen)) return;
                 note.setText(list.isEmpty() ? "No applications yet." : list.size() + " application(s)");
                 for (final Api.StaffApp a : list) {
+                    LinearLayout card = makeAdminCard();
                     TextView info = new TextView(MainActivity.this);
                     info.setText("#" + a.id + "  " + a.service
                             + "\nApplicant: " + a.applicant
                             + "\nStage: " + a.stage + " (" + a.status + ")");
-                    info.setPadding(0, dp(16), 0, 0);
-                    box.addView(info);
+                    info.setTextColor(getResources().getColor(R.color.text_primary));
+                    card.addView(info);
 
                     Button advance = new Button(MainActivity.this);
                     advance.setText("Advance to next stage");
+                    styleAdminButton(advance, true);
                     final long actionGeneration = sessionGeneration;
                     advance.setOnClickListener(v -> Api.advance(a.id, new Api.Callback<Boolean>() {
                         @Override public void onSuccess(Boolean ok) {
@@ -620,7 +734,215 @@ public class MainActivity extends Activity {
                             Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
                         }
                     }));
-                    box.addView(advance);
+                    card.addView(advance);
+                    box.addView(card);
+                }
+            }
+            @Override public void onError(String message) {
+                if (requestGeneration != sessionGeneration) return;
+                note.setText(message);
+            }
+        });
+    }
+
+    private void addTab(LinearLayout tabs, String label, String tab) {
+        Button button = new Button(this);
+        button.setText(label);
+        button.setAllCaps(false);
+        button.setTextSize(12);
+        button.setPadding(dp(5), 0, dp(5), 0);
+        button.setTextColor(getResources().getColor(
+                officialTab.equals(tab) ? R.color.surface : R.color.forest));
+        button.setBackgroundResource(officialTab.equals(tab)
+                ? R.drawable.bg_primary_button
+                : R.drawable.bg_secondary_button);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                0, dp(46), 1f);
+        params.setMargins(dp(3), 0, dp(3), 0);
+        tabs.addView(button, params);
+        button.setOnClickListener(v -> {
+            officialTab = tab;
+            if (!"users".equals(tab)) adminUserOffset = 0;
+            showOfficialScreen();
+        });
+    }
+
+    private LinearLayout makeAdminCard() {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setBackgroundResource(R.drawable.bg_card);
+        card.setPadding(dp(16), dp(14), dp(16), dp(14));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        params.setMargins(0, dp(7), 0, dp(7));
+        card.setLayoutParams(params);
+        return card;
+    }
+
+    private void styleAdminButton(Button button, boolean primary) {
+        button.setAllCaps(false);
+        button.setTextColor(getResources().getColor(
+                primary ? R.color.surface : R.color.forest));
+        button.setBackgroundResource(primary
+                ? R.drawable.bg_primary_button : R.drawable.bg_secondary_button);
+    }
+
+    private void buildAdminUsers(final LinearLayout box) {
+        LinearLayout searchRow = new LinearLayout(this);
+        searchRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        EditText search = new EditText(this);
+        search.setSingleLine(true);
+        search.setHint("Search name, email or ID");
+        search.setText(adminUserSearch);
+        search.setBackgroundResource(R.drawable.bg_input);
+        search.setPadding(dp(12), 0, dp(12), 0);
+        LinearLayout.LayoutParams searchParams = new LinearLayout.LayoutParams(0, dp(50), 1f);
+        searchParams.setMargins(0, 0, dp(8), 0);
+        searchRow.addView(search, searchParams);
+
+        Button searchButton = new Button(this);
+        searchButton.setText("Search");
+        searchButton.setAllCaps(false);
+        searchRow.addView(searchButton, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, dp(50)));
+        box.addView(searchRow);
+
+        final TextView note = new TextView(this);
+        note.setText("Loading accounts...");
+        note.setTextColor(getResources().getColor(R.color.text_secondary));
+        note.setPadding(0, dp(10), 0, dp(5));
+        box.addView(note);
+
+        searchButton.setOnClickListener(v -> {
+            adminUserSearch = value(search);
+            adminUserOffset = 0;
+            showOfficialScreen();
+        });
+
+        final long requestGeneration = sessionGeneration;
+        Api.adminUsers(adminUserSearch, adminUserOffset, new Api.Callback<Api.AdminUserPage>() {
+            @Override public void onSuccess(Api.AdminUserPage page) {
+                if (requestGeneration != sessionGeneration
+                        || !"official".equals(currentScreen)
+                        || !"users".equals(officialTab)) return;
+                note.setText(page.users.isEmpty()
+                        ? "No matching accounts."
+                        : "Accounts " + (page.offset + 1) + "–"
+                        + (page.offset + page.users.size()));
+
+                for (final Api.AdminUser user : page.users) {
+                    LinearLayout card = makeAdminCard();
+                    TextView details = new TextView(MainActivity.this);
+                    details.setText(user.firstName + " " + user.lastName
+                            + "\nAccount #" + user.id + " · " + user.role
+                            + "\nID: " + user.idNumberMasked
+                            + " · Email: " + user.emailMasked
+                            + "\nStatus: " + user.status);
+                    details.setTextColor(getResources().getColor(R.color.text_primary));
+                    card.addView(details);
+
+                    if (!"ADMIN".equals(user.role)) {
+                        Button action = new Button(MainActivity.this);
+                        final String nextStatus = "SUSPENDED".equals(user.status)
+                                ? "ACTIVE" : "SUSPENDED";
+                        action.setText("SUSPENDED".equals(user.status)
+                                ? "Reactivate account" : "Suspend account");
+                        action.setAllCaps(false);
+                        styleAdminButton(action, "SUSPENDED".equals(user.status));
+                        card.addView(action);
+                        action.setOnClickListener(v -> confirmAccountStatus(user, nextStatus));
+                    } else {
+                        TextView protectedAdmin = new TextView(MainActivity.this);
+                        protectedAdmin.setText("Admin roles are managed through the trusted deployment process.");
+                        protectedAdmin.setTextColor(getResources().getColor(R.color.text_secondary));
+                        protectedAdmin.setPadding(0, dp(10), 0, 0);
+                        card.addView(protectedAdmin);
+                    }
+                    box.addView(card);
+                }
+
+                LinearLayout paging = new LinearLayout(MainActivity.this);
+                paging.setGravity(android.view.Gravity.CENTER);
+                if (page.offset > 0) {
+                    Button previous = new Button(MainActivity.this);
+                    previous.setText("Previous");
+                    previous.setAllCaps(false);
+                    paging.addView(previous);
+                    previous.setOnClickListener(v -> {
+                        adminUserOffset = Math.max(0, page.offset - page.limit);
+                        showOfficialScreen();
+                    });
+                }
+                if (page.hasMore) {
+                    Button next = new Button(MainActivity.this);
+                    next.setText("Next");
+                    next.setAllCaps(false);
+                    paging.addView(next);
+                    next.setOnClickListener(v -> {
+                        adminUserOffset = page.offset + page.limit;
+                        showOfficialScreen();
+                    });
+                }
+                box.addView(paging);
+            }
+
+            @Override public void onError(String message) {
+                if (requestGeneration != sessionGeneration) return;
+                note.setText(message);
+            }
+        });
+    }
+
+    private void confirmAccountStatus(Api.AdminUser user, String status) {
+        boolean suspend = "SUSPENDED".equals(status);
+        new AlertDialog.Builder(this)
+                .setTitle(suspend ? "Suspend this account?" : "Reactivate this account?")
+                .setMessage(suspend
+                        ? "This account will no longer be able to sign in. Existing access tokens will be rejected."
+                        : "This account will be allowed to sign in again.")
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton(suspend ? "Suspend" : "Reactivate", (dialog, which) -> {
+                    final long requestGeneration = sessionGeneration;
+                    Api.setUserStatus(user.id, status, new Api.Callback<Boolean>() {
+                        @Override public void onSuccess(Boolean result) {
+                            if (requestGeneration != sessionGeneration
+                                    || !"users".equals(officialTab)) return;
+                            Toast.makeText(MainActivity.this, "Account status updated", Toast.LENGTH_SHORT).show();
+                            showOfficialScreen();
+                        }
+                        @Override public void onError(String message) {
+                            if (requestGeneration != sessionGeneration) return;
+                            Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
+                        }
+                    });
+                })
+                .show();
+    }
+
+    private void buildAdminAudit(final LinearLayout box) {
+        TextView note = new TextView(this);
+        note.setText("Recent account-management activity");
+        note.setTextColor(getResources().getColor(R.color.text_secondary));
+        note.setPadding(0, dp(6), 0, dp(8));
+        box.addView(note);
+        final long requestGeneration = sessionGeneration;
+        Api.adminAudit(new Api.Callback<List<Api.AuditEntry>>() {
+            @Override public void onSuccess(List<Api.AuditEntry> entries) {
+                if (requestGeneration != sessionGeneration
+                        || !"official".equals(currentScreen)
+                        || !"audit".equals(officialTab)) return;
+                note.setText(entries.isEmpty() ? "No account changes recorded." : "Last " + entries.size() + " account changes");
+                for (Api.AuditEntry entry : entries) {
+                    LinearLayout card = makeAdminCard();
+                    TextView line = new TextView(MainActivity.this);
+                    line.setText(entry.action.replace('_', ' ')
+                            + "\nAdministrator: " + entry.actor
+                            + "\nAccount: " + (entry.target == null || entry.target.trim().isEmpty()
+                                    ? "unavailable" : entry.target)
+                            + "\n" + entry.createdAt);
+                    line.setTextColor(getResources().getColor(R.color.text_primary));
+                    card.addView(line);
+                    box.addView(card);
                 }
             }
             @Override public void onError(String message) {
@@ -637,6 +959,10 @@ public class MainActivity extends Activity {
     private void signOut() {
         sessionGeneration++;
         Api.signOut();
+        staffLoginMode = false;
+        officialTab = "applications";
+        adminUserSearch = "";
+        adminUserOffset = 0;
         screenHistory.clear();
         currentScreen = "login";
         savedId = "";

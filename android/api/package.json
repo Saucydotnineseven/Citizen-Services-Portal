@@ -4,7 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node api/api/server.js"
+    "start": "node api/api/server.js",
+    "migrate:admin": "node api/api/migrate-admin.js",
+    "promote:admin": "node api/api/promote-admin.js"
   },
   "keywords": [],
   "author": "",

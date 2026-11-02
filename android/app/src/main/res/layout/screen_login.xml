@@ -24,6 +24,7 @@
             android:background="@color/gold" />
 
         <TextView
+            android:id="@+id/loginTitle"
             style="@style/Heading"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -31,6 +32,7 @@
             android:text="Welcome back" />
 
         <TextView
+            android:id="@+id/loginSubtitle"
             style="@style/BodyText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -46,6 +48,7 @@
             android:padding="20dp">
 
             <TextView
+                android:id="@+id/loginIdentifierLabel"
                 style="@style/FieldLabel"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -59,7 +62,6 @@
                 android:background="@drawable/bg_input"
                 android:hint="13-digit ID number"
                 android:inputType="number"
-                android:maxLength="13"
                 android:paddingStart="14dp"
                 android:paddingEnd="14dp"
                 android:singleLine="true"
@@ -74,6 +76,7 @@
                 android:text="Password" />
 
             <LinearLayout
+                android:id="@+id/loginAccountActions"
                 android:layout_width="match_parent"
                 android:layout_height="52dp"
                 android:layout_marginTop="8dp"
@@ -141,6 +144,7 @@
                 android:text="Sign in" />
 
             <TextView
+                android:id="@+id/loginNewUserNote"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="18dp"
@@ -156,6 +160,38 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="9dp"
                 android:text="Create an account" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:background="@drawable/bg_card"
+            android:orientation="vertical"
+            android:padding="17dp">
+
+            <TextView
+                android:id="@+id/staffPanelTitle"
+                style="@style/FieldLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Home Affairs staff" />
+
+            <TextView
+                android:id="@+id/staffPanelDescription"
+                style="@style/BodyText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Authorized staff can review applications. Administrator accounts are provisioned securely." />
+
+            <Button
+                android:id="@+id/staffAccessButton"
+                style="@style/SecondaryButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="Staff and admin sign in" />
         </LinearLayout>
 
         <TextView

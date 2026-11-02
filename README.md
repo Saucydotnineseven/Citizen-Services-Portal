@@ -71,6 +71,23 @@ The service needs these environment variables in Render's environment settings:
 
 Keep credentials in Render's secret environment settings. Do not commit `.env` files, passwords, database URLs, or signing keys. The local `.env` file is ignored by Git. The database health route is `/api/health/db`.
 
+### Enable the staff/admin portal
+
+The Android login page has a separate **Staff and admin sign in** panel. `OFFICIAL` accounts can review and advance applications. `ADMIN` accounts also get searchable user accounts, suspend/reactivate controls, and an audit log. Account IDs and emails are masked in the user list; administrator roles cannot be changed from the app. Regular self-registration always creates a citizen account.
+
+Before deploying the admin-enabled API, run this additive migration from the Render Shell while the service root directory is `android/api`:
+
+```sh
+npm run migrate:admin
+```
+
+Create or identify a trusted test account, then promote that existing account from the Render Shell:
+
+```sh
+npm run promote:admin -- admin@example.test
+```
+
+Use fictional account details for this prototype. Run the migration before deploying the code that reads `account_status`; suspended accounts are denied on every protected API request. The promotion command changes only the matching existing account and must only be run by a trusted operator.
 The database setup script is intended only for an empty development/demo database. From `android/api/api/api`, it can be run with `node setup-db.js` after configuring the environment and ensuring the target database is safe to initialize. Avoid running schema setup against an existing production database without a reviewed migration plan and backup.
 
 ## Browser presentation demo
