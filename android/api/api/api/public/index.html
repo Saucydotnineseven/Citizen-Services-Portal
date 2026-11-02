@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b4936">
+  <meta name="description" content="Download and present the Home Affairs Citizen Services student demo app.">
+  <title>Home Affairs Citizen Services | Student Demo</title>
+  <style>
+    :root { color-scheme: light; --forest: #0b4936; --green: #18734f; --gold: #d5aa55; --ink: #17231d; --muted: #65726a; --paper: #f6f5f0; --line: #e2e7e1; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.55 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    header { background: var(--forest); color: white; padding: 18px 24px; }
+    .brand { max-width: 1080px; margin: auto; display: flex; align-items: center; gap: 14px; }
+    .mark { display: grid; place-items: center; width: 48px; height: 48px; border: 2px solid var(--gold); border-radius: 13px; font-weight: 800; }
+    .brand strong, .brand span { display: block; }
+    .brand span { color: #dce9e1; font-size: 13px; letter-spacing: .08em; }
+    main { max-width: 960px; margin: 0 auto; padding: 64px 24px 72px; }
+    .eyebrow { color: var(--green); font-size: 13px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+    h1 { max-width: 720px; margin: 12px 0; font-size: clamp(36px, 7vw, 60px); line-height: 1.06; letter-spacing: -.04em; }
+    .intro { max-width: 680px; color: var(--muted); font-size: 19px; }
+    .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin: 28px 0 52px; }
+    .button { display: inline-block; border-radius: 10px; padding: 13px 19px; text-decoration: none; font-weight: 750; }
+    .primary { background: var(--forest); color: white; }
+    .secondary { border: 1px solid #bfd0c5; color: var(--forest); background: white; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+    .card { border: 1px solid var(--line); border-radius: 16px; background: white; padding: 22px; }
+    .card h2 { margin: 0 0 8px; font-size: 19px; }
+    .card p, .card li { color: var(--muted); }
+    .card ol { padding-left: 20px; margin-bottom: 0; }
+    .note { margin-top: 24px; border-left: 4px solid var(--gold); padding: 12px 16px; color: var(--muted); background: #fffaf0; }
+    footer { padding: 20px 24px; text-align: center; color: var(--muted); font-size: 13px; }
+    a:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand"><div class="mark" aria-hidden="true">ZA</div><div><strong>Citizen Services</strong><span>STUDENT PROJECT DEMONSTRATION</span></div></div>
+  </header>
+  <main>
+    <div class="eyebrow">Home Affairs Assistant App</div>
+    <h1>Citizen services, in one place.</h1>
+    <p class="intro">A student demonstration of a mobile experience for exploring Home Affairs services, applications, and appointments.</p>
+    <div class="actions">
+      <a class="button primary" href="/download/app.apk" download>Download the Android app</a>
+      <a class="button secondary" href="/api/health/db">Check demo service status</a>
+    </div>
+    <section class="cards" aria-label="Ways to present the demo">
+      <article class="card">
+        <h2>Install on Android</h2>
+        <p>Download the APK on an Android phone, open it, and allow installation when Android asks. The demo requires Android 6.0 or newer.</p>
+      </article>
+      <article class="card">
+        <h2>Present from a PC</h2>
+        <ol>
+          <li>Open the project in Android Studio.</li>
+          <li>Start a virtual device from Device Manager.</li>
+          <li>Run the app on that device, or drag the downloaded APK into the emulator.</li>
+        </ol>
+      </article>
+      <article class="card">
+        <h2>About this demo</h2>
+        <p>This is an independent student prototype, not an official Department of Home Affairs service. Use fictional details for demonstrations.</p>
+      </article>
+    </section>
+    <p class="note">The Android APK runs on Android devices or in an Android emulator. It does not run directly as a Windows application in a web browser.</p>
+  </main>
+  <footer>Student demonstration · Home Affairs Assistant App</footer>
+</body>
+</html>
