@@ -1,8 +1,8 @@
 require('dotenv').config();
 const pool = require('./db');
 
-(async () => {
-  const [columns] = await pool.query(
+async function migrateAdmin(db = pool) {
+  const [columns] = await db.query(
     `SELECT COLUMN_NAME
      FROM INFORMATION_SCHEMA.COLUMNS
      WHERE TABLE_SCHEMA = DATABASE()
@@ -11,7 +11,7 @@ const pool = require('./db');
   );
 
   if (columns.length === 0) {
-    await pool.query(
+    await db.query(
       "ALTER TABLE users ADD COLUMN account_status ENUM('ACTIVE','SUSPENDED') NOT NULL DEFAULT 'ACTIVE'"
     );
     console.log('Added users.account_status');
@@ -19,7 +19,7 @@ const pool = require('./db');
     console.log('users.account_status already exists');
   }
 
-  await pool.query(`
+  await db.query(`
     CREATE TABLE IF NOT EXISTS admin_audit_log (
       audit_id INT AUTO_INCREMENT PRIMARY KEY,
       actor_user_id INT NOT NULL,
@@ -31,9 +31,16 @@ const pool = require('./db');
     )
   `);
   console.log('Admin account-management migration complete');
-  await pool.end();
-})().catch(async error => {
-  console.error('Admin migration failed:', error.code || 'UNKNOWN');
-  await pool.end();
-  process.exit(1);
-});
+}
+
+module.exports = migrateAdmin;
+
+if (require.main === module) {
+  migrateAdmin()
+    .then(() => pool.end())
+    .catch(async error => {
+      console.error('Admin migration failed:', error.code || 'UNKNOWN');
+      await pool.end();
+      process.exit(1);
+    });
+}

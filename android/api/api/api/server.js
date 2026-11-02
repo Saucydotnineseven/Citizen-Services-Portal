@@ -2,6 +2,8 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const pool = require('./db');
+const migrateAdmin = require('./migrate-admin');
 const app = express();
 app.disable('x-powered-by');
 
@@ -39,6 +41,38 @@ app.get('/download/app.apk', (req, res) => {
 
 require('./dbroutes')(app); // plug in all the endpoints
 
-const PORT = process.env.PORT || 3000;
-// '0.0.0.0' lets other devices (your phone) reach the server
-app.listen(PORT, '0.0.0.0', () => console.log('API running on port ' + PORT));
+async function startServer() {
+  // Apply the additive account-management migration before accepting requests.
+  await migrateAdmin(pool);
+
+  const bootstrapEmail = String(process.env.ADMIN_BOOTSTRAP_EMAIL || '')
+    .trim()
+    .toLowerCase();
+  if (bootstrapEmail) {
+    const [rows] = await pool.query(
+      `SELECT user_id, role FROM users
+       WHERE LOWER(email) = ? AND account_status = 'ACTIVE'`,
+      [bootstrapEmail]
+    );
+    if (rows.length !== 1) {
+      throw new Error('ADMIN_BOOTSTRAP_EMAIL must match one existing active account');
+    }
+    if (rows[0].role !== 'ADMIN') {
+      await pool.query(
+        "UPDATE users SET role = 'ADMIN' WHERE user_id = ?",
+        [rows[0].user_id]
+      );
+      console.log('Configured the bootstrap administrator account');
+    }
+  }
+
+  const PORT = process.env.PORT || 3000;
+  // '0.0.0.0' lets other devices (your phone) reach the server
+  app.listen(PORT, '0.0.0.0', () => console.log('API running on port ' + PORT));
+}
+
+startServer().catch(async error => {
+  console.error('API startup failed:', error.code || error.message || 'UNKNOWN');
+  await pool.end();
+  process.exit(1);
+});

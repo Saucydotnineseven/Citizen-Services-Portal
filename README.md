@@ -75,19 +75,9 @@ Keep credentials in Render's secret environment settings. Do not commit `.env` f
 
 The Android login page has a separate **Staff and admin sign in** panel. `OFFICIAL` accounts can review and advance applications. `ADMIN` accounts also get searchable user accounts, suspend/reactivate controls, and an audit log. Account IDs and emails are masked in the user list; administrator roles cannot be changed from the app. Regular self-registration always creates a citizen account.
 
-Before deploying the admin-enabled API, run this additive migration from the Render Shell while the service root directory is `android/api`:
+The API applies the additive account-management migration automatically at startup before it accepts requests. To provision an administrator on Render's free plan, first create the account through the app's normal registration flow. Then add `ADMIN_BOOTSTRAP_EMAIL` to the Render service's Environment settings with that exact account email and save the changes to trigger a deploy. On startup, the API promotes that existing active account to `ADMIN`; it never creates an account. Keep the variable set so the role remains configured after restarts. Remove or change it only through Render's Environment settings.
 
-```sh
-npm run migrate:admin
-```
-
-Create or identify a trusted test account, then promote that existing account from the Render Shell:
-
-```sh
-npm run promote:admin -- admin@example.test
-```
-
-Use fictional account details for this prototype. Run the migration before deploying the code that reads `account_status`; suspended accounts are denied on every protected API request. The promotion command changes only the matching existing account and must only be run by a trusted operator.
+Use a trusted test account and fictional details for this prototype. The migration runs before the API accepts requests; suspended accounts are denied on every protected API request. Anyone with permission to edit the Render service's environment can select which existing account receives administrator access.
 The database setup script is intended only for an empty development/demo database. From `android/api/api/api`, it can be run with `node setup-db.js` after configuring the environment and ensuring the target database is safe to initialize. Avoid running schema setup against an existing production database without a reviewed migration plan and backup.
 
 ## Browser presentation demo
