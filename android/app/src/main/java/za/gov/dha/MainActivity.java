@@ -36,8 +36,10 @@ public class MainActivity extends Activity {
     private boolean staffLoginMode = false;
     private String officialTab = "applications";
     private String adminUserSearch = "";
+    private String staffApplicationSearch = "";
     private int adminUserOffset = 0;
     private long sessionGeneration = 0;
+    private long staffApplicationsRequestGeneration = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -700,48 +702,103 @@ public class MainActivity extends Activity {
             return;
         }
 
+        LinearLayout searchRow = new LinearLayout(this);
+        searchRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        EditText appSearch = new EditText(this);
+        appSearch.setSingleLine(true);
+        appSearch.setHint("Search application, applicant or service");
+        appSearch.setText(staffApplicationSearch);
+        appSearch.setBackgroundResource(R.drawable.bg_input);
+        appSearch.setPadding(dp(12), 0, dp(12), 0);
+        LinearLayout.LayoutParams appSearchParams = new LinearLayout.LayoutParams(0, dp(50), 1f);
+        appSearchParams.setMargins(0, 0, dp(8), 0);
+        searchRow.addView(appSearch, appSearchParams);
+        Button searchApps = new Button(this);
+        searchApps.setText("Search");
+        styleAdminButton(searchApps, true);
+        searchRow.addView(searchApps, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, dp(50)));
+        searchApps.setOnClickListener(v -> {
+            staffApplicationSearch = value(appSearch);
+            showOfficialScreen();
+        });
+        box.addView(searchRow);
+
+        Button refreshApplications = new Button(this);
+        refreshApplications.setText("Refresh applications");
+        styleAdminButton(refreshApplications, false);
+        refreshApplications.setOnClickListener(v -> buildOfficialList(box));
+        box.addView(refreshApplications);
+
         final TextView note = new TextView(this);
         note.setText("Loading applications...");
         note.setTextColor(getResources().getColor(R.color.text_secondary));
         note.setPadding(0, dp(12), 0, dp(8));
         box.addView(note);
         final long requestGeneration = sessionGeneration;
+        final long applicationsRequest = ++staffApplicationsRequestGeneration;
 
-        Api.staffApplications(new Api.Callback<List<Api.StaffApp>>() {
+        Api.staffApplications(staffApplicationSearch, new Api.Callback<List<Api.StaffApp>>() {
             @Override public void onSuccess(List<Api.StaffApp> list) {
                 if (requestGeneration != sessionGeneration
+                        || applicationsRequest != staffApplicationsRequestGeneration
                         || !"official".equals(currentScreen)) return;
                 note.setText(list.isEmpty() ? "No applications yet." : list.size() + " application(s)");
                 for (final Api.StaffApp a : list) {
                     LinearLayout card = makeAdminCard();
                     TextView info = new TextView(MainActivity.this);
+                    String submitted = a.submittedAt == null ? "" : a.submittedAt;
+                    if (submitted.length() > 10) submitted = submitted.substring(0, 10);
                     info.setText("#" + a.id + "  " + a.service
                             + "\nApplicant: " + a.applicant
+                            + (submitted.isEmpty() ? "" : "\nSubmitted: " + submitted)
                             + "\nStage: " + a.stage + " (" + a.status + ")");
                     info.setTextColor(getResources().getColor(R.color.text_primary));
                     card.addView(info);
 
                     Button advance = new Button(MainActivity.this);
-                    advance.setText("Advance to next stage");
+                    boolean completed = "READY".equals(a.status) || "REJECTED".equals(a.status);
+                    advance.setText(completed ? "Application complete" : "Advance to next stage");
                     styleAdminButton(advance, true);
+                    advance.setEnabled(!completed);
                     final long actionGeneration = sessionGeneration;
-                    advance.setOnClickListener(v -> Api.advance(a.id, new Api.Callback<Boolean>() {
-                        @Override public void onSuccess(Boolean ok) {
+                    advance.setOnClickListener(v -> {
+                        advance.setEnabled(false);
+                        advance.setText("Updating...");
+                        Api.advance(a.id, new Api.Callback<Api.AppProgress>() {
+                        @Override public void onSuccess(Api.AppProgress progress) {
                             if (actionGeneration != sessionGeneration
                                     || !"official".equals(currentScreen)) return;
-                            buildOfficialList(box);   // reload to show the new stage
+                            a.stage = progress.stage;
+                            a.status = progress.status;
+                            String refreshedDate = a.submittedAt == null ? "" : a.submittedAt;
+                            if (refreshedDate.length() > 10) refreshedDate = refreshedDate.substring(0, 10);
+                            info.setText("#" + a.id + "  " + a.service
+                                    + "\nApplicant: " + a.applicant
+                                    + (refreshedDate.isEmpty() ? "" : "\nSubmitted: " + refreshedDate)
+                                    + "\nStage: " + a.stage + " (" + a.status + ")");
+                            boolean nowComplete = "READY".equals(a.status) || "REJECTED".equals(a.status);
+                            advance.setText(nowComplete ? "Application complete" : "Advance to next stage");
+                            advance.setEnabled(!nowComplete);
+                            Toast.makeText(MainActivity.this,
+                                    "Application #" + a.id + " moved to " + a.stage,
+                                    Toast.LENGTH_LONG).show();
                         }
                         @Override public void onError(String message) {
                             if (actionGeneration != sessionGeneration) return;
+                            advance.setText("Advance to next stage");
+                            advance.setEnabled(true);
                             Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
                         }
-                    }));
+                    });
+                    });
                     card.addView(advance);
                     box.addView(card);
                 }
             }
             @Override public void onError(String message) {
-                if (requestGeneration != sessionGeneration) return;
+                if (requestGeneration != sessionGeneration
+                        || applicationsRequest != staffApplicationsRequestGeneration) return;
                 note.setText(message);
             }
         });
@@ -964,6 +1021,7 @@ public class MainActivity extends Activity {
         staffLoginMode = false;
         officialTab = "applications";
         adminUserSearch = "";
+        staffApplicationSearch = "";
         adminUserOffset = 0;
         screenHistory.clear();
         currentScreen = "login";

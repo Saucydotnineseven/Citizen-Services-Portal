@@ -49,7 +49,11 @@ public class Api {
 
     public static class StaffApp {
         public int id;
-        public String service, applicant, status, stage;
+        public String service, applicant, status, stage, submittedAt;
+    }
+
+    public static class AppProgress {
+        public String stage, status;
     }
 
     public static class AdminUser {
@@ -385,12 +389,14 @@ public class Api {
     // STAFF
 
     public static void staffApplications(
+            final String search,
             Callback<List<StaffApp>> cb) {
 
         final String requestToken = token;
         run(() -> {
+            String encoded = URLEncoder.encode(search == null ? "" : search, "UTF-8");
             JSONArray arr = new JSONArray(
-                    request("GET", "/api/staff/applications", null, requestToken)
+                    request("GET", "/api/staff/applications?search=" + encoded, null, requestToken)
             );
 
             List<StaffApp> list = new ArrayList<>();
@@ -409,6 +415,7 @@ public class Api {
 
                 s.status = o.getString("status");
                 s.stage = o.optString("current_stage");
+                s.submittedAt = o.optString("submission_date");
 
                 list.add(s);
             }
@@ -420,19 +427,21 @@ public class Api {
 
     public static void advance(
             final int applicationId,
-            Callback<Boolean> cb) {
+            Callback<AppProgress> cb) {
 
         final String requestToken = token;
         run(() -> {
-            request(
+            JSONObject response = new JSONObject(request(
                     "POST",
                     "/api/staff/applications/" +
                             applicationId + "/advance",
                     null,
                     requestToken
-            );
-
-            return true;
+            ));
+            AppProgress progress = new AppProgress();
+            progress.stage = response.optString("currentStage");
+            progress.status = response.optString("status");
+            return progress;
 
         }, cb);
     }

@@ -450,15 +450,21 @@ module.exports = function (app) {
 
   // ---------- Official: all applications ----------
   app.get('/api/staff/applications', requireLogin, requireStaff, async (req, res) => {
+    const search = String(req.query.search || '').trim().slice(0, 100);
+    const term = `%${search}%`;
     try {
       const [rows] = await pool.query(
-        `SELECT a.application_id, a.status, a.current_stage,
-                a.submission_date, s.service_name,
+        `SELECT a.application_id, a.status, a.current_stage, a.submission_date,
+                s.service_name,
                 u.first_name, u.last_name
          FROM applications a
          JOIN services s ON a.service_id = s.service_id
          JOIN users u ON a.user_id = u.user_id
-         ORDER BY a.submission_date DESC`
+         WHERE (? = '' OR CAST(a.application_id AS CHAR) LIKE ?
+                OR s.service_name LIKE ? OR u.first_name LIKE ?
+                OR u.last_name LIKE ? OR CONCAT(u.first_name, ' ', u.last_name) LIKE ?)
+         ORDER BY a.submission_date DESC`,
+        [search, term, term, term, term, term]
       );
 
       res.json(rows);
@@ -580,53 +586,124 @@ module.exports = function (app) {
 
   // ---------- Official: advance application ----------
   app.post('/api/staff/applications/:id/advance', requireLogin, requireStaff, async (req, res) => {
-    const id = Number(req.params.id);
+    const idText = String(req.params.id || '');
+    const id = Number(idText);
+    if (!/^\d+$/.test(idText) || !Number.isSafeInteger(id) || id < 1) {
+      return res.status(400).json({ error: 'Invalid application ID' });
+    }
     let conn;
 
     try {
       conn = await pool.getConnection();
       await conn.beginTransaction();
 
-      const [stages] = await conn.query(
+      const [applications] = await conn.query(
+        `SELECT application_id, user_id, current_stage, status
+         FROM applications WHERE application_id = ? FOR UPDATE`,
+        [id]
+      );
+      if (!applications.length) {
+        await conn.rollback();
+        return res.status(404).json({ error: 'Application not found' });
+      }
+      const application = applications[0];
+      if (application.status === 'REJECTED' || application.status === 'READY') {
+        await conn.rollback();
+        return res.status(409).json({ error: 'This application is already complete' });
+      }
+
+      let [stages] = await conn.query(
         `SELECT * FROM application_stages
          WHERE application_id = ?
          ORDER BY stage_order FOR UPDATE`,
         [id]
       );
 
-      const idx = stages.findIndex(
+      const stageNames = [
+        'Submitted', 'Documents Verified', 'Under Review',
+        'Approved', 'Ready for Collection'
+      ];
+      let activeIndex = stageNames.findIndex(
+        name => name.toLowerCase() === String(application.current_stage || '').trim().toLowerCase()
+      );
+      if (activeIndex < 0) {
+        activeIndex = application.status === 'APPROVED' ? 3
+          : application.status === 'IN_REVIEW' ? 2 : 0;
+      }
+
+      // Older demo applications may predate application_stages, or have no
+      // CURRENT row. Reconstruct the tracking rows from the saved application.
+      if (stages.length === 0) {
+        for (let i = 0; i < stageNames.length; i++) {
+          await conn.query(
+            `INSERT INTO application_stages
+             (application_id, stage_order, stage_name, stage_status, updated_date)
+             VALUES (?, ?, ?, ?, ?)`,
+            [id, i + 1, stageNames[i],
+              i < activeIndex ? 'DONE' : i === activeIndex ? 'CURRENT' : 'PENDING',
+              i <= activeIndex ? new Date() : null]
+          );
+        }
+        [stages] = await conn.query(
+          `SELECT * FROM application_stages
+           WHERE application_id = ? ORDER BY stage_order FOR UPDATE`,
+          [id]
+        );
+      }
+
+      let idx = stages.findIndex(
         s => s.stage_status === 'CURRENT'
       );
 
       if (idx === -1) {
-        await conn.rollback();
-        return res.status(400).json({
-          error: 'Nothing left to advance'
-        });
-      }
-
-      await conn.query(
-        `UPDATE application_stages
-         SET stage_status = 'DONE', updated_date = NOW()
-         WHERE stage_id = ?`,
-        [stages[idx].stage_id]
-      );
-
-      let newStage = stages[idx].stage_name;
-      let newStatus = 'READY';
-
-      if (idx + 1 < stages.length) {
+        const currentName = String(application.current_stage || '').trim().toLowerCase();
+        const storedIndex = stages.findIndex(
+          s => String(s.stage_name).trim().toLowerCase() === currentName
+        );
+        idx = storedIndex >= 0 ? storedIndex : Math.min(activeIndex, stages.length - 1);
         await conn.query(
           `UPDATE application_stages
-           SET stage_status = 'CURRENT', updated_date = NOW()
-           WHERE stage_id = ?`,
-          [stages[idx + 1].stage_id]
+           SET stage_status = CASE
+                 WHEN stage_order < ? THEN 'DONE'
+                 WHEN stage_order = ? THEN 'CURRENT'
+                 ELSE 'PENDING'
+               END,
+               updated_date = CASE WHEN stage_order = ? THEN NOW() ELSE updated_date END
+           WHERE application_id = ?`,
+          [stages[idx].stage_order, stages[idx].stage_order, stages[idx].stage_order, id]
         );
-
-        newStage = stages[idx + 1].stage_name;
-        newStatus =
-          idx + 1 === stages.length - 1 ? 'READY' : 'IN_REVIEW';
       }
+
+      if (idx === -1) {
+        await conn.rollback();
+        return res.status(400).json({
+          error: 'No application stage is available to advance'
+        });
+      }
+      if (idx + 1 >= stages.length) {
+        await conn.rollback();
+        return res.status(409).json({ error: 'This application is already at its final stage' });
+      }
+
+      const newStage = stages[idx + 1].stage_name;
+      const newStatus = newStage === 'Ready for Collection' ? 'READY'
+        : newStage === 'Approved' ? 'APPROVED'
+          : newStage === 'Submitted' ? 'SUBMITTED' : 'IN_REVIEW';
+      await conn.query(
+        `UPDATE application_stages
+         SET stage_status = CASE
+               WHEN stage_order < ? THEN 'DONE'
+               WHEN stage_order = ? THEN 'CURRENT'
+               ELSE 'PENDING'
+             END,
+             updated_date = CASE
+             WHEN stage_order = ? THEN NOW()
+               ELSE updated_date
+             END
+         WHERE application_id = ?`,
+        [stages[idx + 1].stage_order, stages[idx + 1].stage_order,
+          stages[idx + 1].stage_order, id]
+      );
 
       await conn.query(
         `UPDATE applications
@@ -635,20 +712,10 @@ module.exports = function (app) {
         [newStage, newStatus, id]
       );
 
-      const [[appRow]] = await conn.query(
-        'SELECT user_id FROM applications WHERE application_id = ?',
-        [id]
+      await conn.query(
+        'INSERT INTO notifications (user_id, message) VALUES (?, ?)',
+        [application.user_id, `Your application #${id} is now: ${newStage}`]
       );
-
-      if (appRow) {
-        await conn.query(
-          'INSERT INTO notifications (user_id, message) VALUES (?, ?)',
-          [
-            appRow.user_id,
-            `Your application #${id} is now: ${newStage}`
-          ]
-        );
-      }
 
       await conn.commit();
 
