@@ -167,7 +167,9 @@ public class MainActivity extends Activity {
             staffDescription.setText("Return to the citizen account sign-in.");
             staffButton.setText("Back to citizen sign in");
             ((Button) findViewById(R.id.signInButton)).setText("Open staff portal");
-            setVisible(R.id.loginAccountActions, false);
+            // This container holds the password field as well as its visibility
+            // toggle; keep it visible for staff/admin sign-in.
+            setVisible(R.id.loginAccountActions, true);
             setVisible(R.id.loginNewUserNote, false);
             setVisible(R.id.createAccountButton, false);
         } else {
