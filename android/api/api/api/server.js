@@ -5,6 +5,14 @@ const app = express();
 app.use(cors());            // allow requests from other origins
 app.use(express.json());    // read JSON request bodies
 
+app.get('/', (req, res) => {
+  res.json({
+    service: 'Home Affairs Citizen Services API',
+    status: 'running',
+    health: '/api/health/db'
+  });
+});
+
 require('./dbroutes')(app); // plug in all the endpoints
 
 const PORT = process.env.PORT || 3000;
