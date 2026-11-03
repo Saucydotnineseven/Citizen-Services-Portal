@@ -3,6 +3,10 @@ package za.gov.dha;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.os.Bundle;
+import android.content.Intent;
+import android.net.Uri;
+import android.database.Cursor;
+import android.provider.OpenableColumns;
 import android.text.Editable;
 import android.text.InputFilter;
 import android.text.InputType;
@@ -16,6 +20,8 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Spinner;
 import android.widget.TextView;
+import android.widget.FrameLayout;
+import android.widget.ProgressBar;
 import android.widget.Toast;
 
 import java.util.ArrayDeque;
@@ -24,6 +30,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.ArrayList;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.io.IOException;
 
 public class MainActivity extends Activity {
     private final Deque<String> screenHistory = new ArrayDeque<>();
@@ -40,16 +50,38 @@ public class MainActivity extends Activity {
     private int adminUserOffset = 0;
     private long sessionGeneration = 0;
     private long staffApplicationsRequestGeneration = 0;
+    private final ArrayList<Uri> selectedDocuments = new ArrayList<>();
+    private ProgressBar requestProgress;
+    private boolean foreignRegistration;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        Api.setLoadingListener(visible -> {
+            if (requestProgress != null) requestProgress.setVisibility(visible ? View.VISIBLE : View.GONE);
+        });
         renderScreen();
     }
 
     @Override
     public void onBackPressed() {
         goBack();
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == 410 && resultCode == RESULT_OK && data != null && data.getData() != null) {
+            Uri uri = data.getData();
+            selectedDocuments.add(uri);
+            try {
+                getContentResolver().takePersistableUriPermission(uri,
+                        data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION));
+            } catch (SecurityException ignored) { }
+            TextView label = findViewById(R.id.selectedDocuments);
+            if (label != null) label.setText(selectedDocuments.size() + " document(s) selected on this device");
+            Toast.makeText(this, "Selected locally. Files are not uploaded in this demo.", Toast.LENGTH_LONG).show();
+        }
     }
 
     private void navigateTo(String screen) {
@@ -84,53 +116,54 @@ public class MainActivity extends Activity {
     private void renderScreen() {
         switch (currentScreen) {
             case "signup":
-                setContentView(R.layout.screen_signup);
+                showLayout(R.layout.screen_signup);
+                setupSignupType();
                 bind(R.id.signupBack, this::goBack);
                 bind(R.id.signupSubmit, this::createAccount);
                 break;
             case "recovery":
-                setContentView(R.layout.screen_recovery);
+                showLayout(R.layout.screen_recovery);
                 bind(R.id.recoveryBack, this::goBack);
                 bind(R.id.recoverySubmit, this::recoverAccount);
                 break;
             case "dashboard":
-                setContentView(R.layout.screen_dashboard);
+                showLayout(R.layout.screen_dashboard);
                 setupDashboard();
                 break;
             case "service":
-                setContentView(R.layout.screen_service_form);
+                showLayout(R.layout.screen_service_form);
                 setupServiceForm();
                 break;
             case "tracking":
-                setContentView(R.layout.screen_tracking);
+                showLayout(R.layout.screen_tracking);
                 bind(R.id.trackingBack, this::goBack);
                 bind(R.id.trackingApplications, () -> navigateTo("applications"));
                 break;
             case "applications":
-                setContentView(R.layout.screen_applications);
+                showLayout(R.layout.screen_applications);
                 setupApplications();
                 break;
             case "appointments":
-                setContentView(R.layout.screen_appointments);
+                showLayout(R.layout.screen_appointments);
                 setupAppointments();
                 break;
             case "appointmentRequest":
-                setContentView(R.layout.screen_appointment_request);
+                showLayout(R.layout.screen_appointment_request);
                 setupAppointmentRequest();
                 break;
             case "guide":
-                setContentView(R.layout.screen_appointment_guide);
+                showLayout(R.layout.screen_appointment_guide);
                 bind(R.id.guideBack, this::goBack);
                 bind(R.id.guideStartApplication, () -> openService("Passport"));
                 bind(R.id.guideAppointments, () -> navigateTo("appointments"));
                 break;
             case "notifications":
-                setContentView(R.layout.screen_notifications);
+                showLayout(R.layout.screen_notifications);
                 setupNotifications();
                 break;
             case "privacy":
             case "help":
-                setContentView(R.layout.screen_info);
+                showLayout(R.layout.screen_info);
                 setupInfo();
                 break;
             case "official":
@@ -139,10 +172,24 @@ public class MainActivity extends Activity {
             case "login":
             default:
                 currentScreen = "login";
-                setContentView(R.layout.screen_login);
+                showLayout(R.layout.screen_login);
                 setupLogin();
                 break;
         }
+    }
+
+    private void showLayout(int layoutId) {
+        View content = getLayoutInflater().inflate(layoutId, null, false);
+        FrameLayout frame = new FrameLayout(this);
+        frame.addView(content, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        requestProgress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        requestProgress.setIndeterminate(true);
+        requestProgress.setVisibility(View.GONE);
+        FrameLayout.LayoutParams bar = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(4), android.view.Gravity.TOP);
+        frame.addView(requestProgress, bar);
+        setContentView(frame);
     }
 
     // ------------------------------------------------------------------
@@ -177,10 +224,10 @@ public class MainActivity extends Activity {
         } else {
             title.setText("Welcome back");
             subtitle.setText("Sign in to manage your Home Affairs services securely.");
-            identifierLabel.setText("South African ID number");
-            idField.setHint("13-digit ID number");
-            idField.setInputType(InputType.TYPE_CLASS_NUMBER);
-            idField.setFilters(new InputFilter[]{new InputFilter.LengthFilter(13)});
+            identifierLabel.setText("ID or passport / travel document number");
+            idField.setHint("Enter your ID or travel document number");
+            idField.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);
+            idField.setFilters(new InputFilter[0]);
             staffTitle.setText("Home Affairs staff");
             staffDescription.setText("Authorized staff can review applications. Administrator accounts are provisioned securely.");
             staffButton.setText("Staff and admin sign in");
@@ -215,13 +262,33 @@ public class MainActivity extends Activity {
         });
     }
 
+    private void setupSignupType() {
+        Spinner type = findViewById(R.id.signupAccountType);
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
+                android.R.layout.simple_spinner_item,
+                new String[]{"South African citizen", "Foreign national"});
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        type.setAdapter(adapter);
+        type.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                EditText identifier = findViewById(R.id.signupId);
+                identifier.setHint(position == 1 ? "Passport or travel document number" : "13-digit South African ID number");
+                identifier.setInputType(position == 1
+                        ? InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
+                        : InputType.TYPE_CLASS_NUMBER);
+                identifier.setFilters(new InputFilter[]{new InputFilter.LengthFilter(position == 1 ? 20 : 13)});
+            }
+            @Override public void onNothingSelected(android.widget.AdapterView<?> parent) { }
+        });
+    }
+
     private void signIn() {
         EditText id = findViewById(R.id.loginId);
         EditText password = findViewById(R.id.loginPassword);
         final String idValue = value(id);
         String passwordValue = value(password);
-        if (!staffLoginMode && !isValidId(idValue)) {
-            showError(id, "Enter a valid 13-digit ID number");
+        if (!staffLoginMode && idValue.trim().length() < 4) {
+            showError(id, "Enter your ID or travel document number");
             return;
         }
         if (staffLoginMode && idValue.isEmpty()) {
@@ -279,10 +346,12 @@ public class MainActivity extends Activity {
         EditText mobile = findViewById(R.id.signupMobile);
         EditText password = findViewById(R.id.signupPassword);
         EditText confirm = findViewById(R.id.signupConfirm);
+        Spinner accountType = findViewById(R.id.signupAccountType);
+        foreignRegistration = accountType != null && accountType.getSelectedItemPosition() == 1;
         if (value(name).isEmpty()) {
             showError(name, "Enter your full name");
-        } else if (!isValidId(value(id))) {
-            showError(id, "Enter a valid 13-digit ID number");
+        } else if (value(id).trim().length() < 4 || (!foreignRegistration && !isValidId(value(id)))) {
+            showError(id, foreignRegistration ? "Enter your passport or travel document number" : "Enter a valid 13-digit ID number");
         } else if (!android.util.Patterns.EMAIL_ADDRESS.matcher(value(email)).matches()) {
             showError(email, "Enter a valid email address");
         } else if (!isValidMobile(value(mobile))) {
@@ -306,7 +375,7 @@ public class MainActivity extends Activity {
             final long registrationGeneration = sessionGeneration;
 
             setBusy(R.id.signupSubmit, true);
-            Api.register(idValue, first, last, value(email), value(mobile), value(password), false,
+            Api.register(idValue, first, last, value(email), value(mobile), value(password), foreignRegistration,
                     new Api.Callback<Boolean>() {
                         @Override public void onSuccess(Boolean result) {
                             if (registrationGeneration != sessionGeneration) return;
@@ -314,7 +383,7 @@ public class MainActivity extends Activity {
                             savedName = firstName;
                             new AlertDialog.Builder(MainActivity.this)
                                     .setTitle("Account created")
-                                    .setMessage("Your account was saved in the prototype database. Sign in with your ID number and password.")
+                                    .setMessage("Your account was saved in the prototype database. Sign in with your ID or travel document number and password.")
                                     .setCancelable(false)
                                     .setPositiveButton("Go to sign in", (dialog, which) -> {
                                         screenHistory.clear();
@@ -361,6 +430,8 @@ public class MainActivity extends Activity {
         bind(R.id.passportButton, () -> openService("Passport"));
         bind(R.id.smartIdButton, () -> openService("Smart ID"));
         bind(R.id.certificatesButton, () -> openService("Certificates"));
+        bind(R.id.asylumButton, () -> openService("Asylum application preparation"));
+        setVisible(R.id.serviceAsylum, "FOREIGN_NATIONAL".equals(Api.role));
         bind(R.id.applicationsButton, () -> navigateTo("applications"));
         bind(R.id.appointmentsButton, () -> navigateTo("appointments"));
         bind(R.id.guideButton, () -> navigateTo("guide"));
@@ -376,6 +447,7 @@ public class MainActivity extends Activity {
                 setVisible(R.id.servicePassport, query.isEmpty() || "passport".contains(query) || "renew".contains(query));
                 setVisible(R.id.serviceSmartId, query.isEmpty() || "smart id".contains(query) || "id".contains(query));
                 setVisible(R.id.serviceCertificates, query.isEmpty() || "certificate".contains(query) || "certificates".contains(query) || "birth".contains(query) || "marriage".contains(query));
+                setVisible(R.id.serviceAsylum, "FOREIGN_NATIONAL".equals(Api.role) && (query.isEmpty() || "asylum".contains(query) || "refugee".contains(query)));
             }
             @Override public void afterTextChanged(Editable s) { }
         });
@@ -383,6 +455,7 @@ public class MainActivity extends Activity {
 
     private void openService(String service) {
         selectedService = service;
+        selectedDocuments.clear();
         navigateTo("service");
     }
 
@@ -396,6 +469,11 @@ public class MainActivity extends Activity {
         EditText applicantId = findViewById(R.id.formId);
         if (!savedName.isEmpty()) applicantName.setText(savedName);
         if (!savedId.isEmpty()) applicantId.setText(savedId);
+        boolean foreignNational = "FOREIGN_NATIONAL".equals(Api.role);
+        applicantId.setHint(foreignNational ? "Passport or travel document number" : "13-digit South African ID number");
+        applicantId.setInputType(foreignNational
+                ? InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
+                : InputType.TYPE_CLASS_NUMBER);
         Spinner serviceType = findViewById(R.id.serviceType);
         TextView serviceHint = findViewById(R.id.serviceHint);
         String[] options;
@@ -405,7 +483,14 @@ public class MainActivity extends Activity {
         } else if ("Smart ID".equals(selectedService)) {
             options = new String[] {"First-time Smart ID", "Renewal", "Lost or stolen card", "Damaged card"};
             serviceHint.setText("Choose the Smart ID service you need.");
+        } else if ("Asylum application preparation".equals(selectedService)) {
+            options = new String[]{"Asylum application preparation (demo)"};
+            serviceHint.setText("Prepare for an in-person visit to a Refugee Reception Office.");
+            setVisible(R.id.asylumNotice, true);
+            setVisible(R.id.formCountry, true);
         } else {
+            setVisible(R.id.asylumNotice, false);
+            setVisible(R.id.formCountry, false);
             options = new String[] {"Birth certificate", "Marriage certificate", "Death certificate", "Certificate amendment"};
             serviceHint.setText("Choose the certificate service you need.");
         }
@@ -413,6 +498,23 @@ public class MainActivity extends Activity {
                 this, android.R.layout.simple_spinner_item, options);
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         serviceType.setAdapter(adapter);
+        TextView documentGuidance = findViewById(R.id.documentGuidance);
+        if ("Asylum application preparation".equals(selectedService)) {
+            documentGuidance.setText("Preparation only: bring any identity or travel document and supporting information you have. Do not delay seeking in-person guidance if documents are unavailable.");
+        } else if ("Passport".equals(selectedService) || "Smart ID".equals(selectedService)) {
+            documentGuidance.setText("Examples may include proof of address and identity or existing passport documents. Check the latest official requirements for your exact service.");
+        } else {
+            documentGuidance.setText("Examples may include proof of address, identity documents, and records supporting the certificate request. Check the latest official requirements.");
+        }
+        TextView selected = findViewById(R.id.selectedDocuments);
+        bind(R.id.uploadDocuments, () -> {
+            Intent picker = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            picker.addCategory(Intent.CATEGORY_OPENABLE);
+            picker.setType("*/*");
+            picker.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"application/pdf", "image/jpeg", "image/png"});
+            startActivityForResult(picker, 410);
+        });
+        selected.setText(selectedDocuments.isEmpty() ? "No documents selected" : selectedDocuments.size() + " document(s) selected");
         bind(R.id.serviceBack, this::goBack);
         bind(R.id.submitApplication, this::submitApplication);
     }
@@ -420,6 +522,7 @@ public class MainActivity extends Activity {
     /** Maps the option picked in the form to a service in the database. */
     private String serviceIdFor(String option) {
         switch (option) {
+            case "Asylum application preparation (demo)": return "asylum_prepare_demo";
             case "New passport":            return "passport_new";
             case "Lost or stolen passport":
             case "Damaged passport":        return "passport_renewal";
@@ -442,8 +545,9 @@ public class MainActivity extends Activity {
             showError(name, "Enter your full name");
             return;
         }
-        if (!isValidId(value(id))) {
-            showError(id, "Enter a valid 13-digit ID number");
+        boolean foreignNational = "FOREIGN_NATIONAL".equals(Api.role);
+        if (foreignNational ? value(id).length() < 4 : !isValidId(value(id))) {
+            showError(id, foreignNational ? "Enter your travel document number" : "Enter a valid 13-digit ID number");
             return;
         }
         if (!isValidMobile(value(mobile))) {
@@ -468,13 +572,19 @@ public class MainActivity extends Activity {
                     form.put("Full name", nameVal);
                     form.put("ID number", idVal);
                     form.put("Mobile number", mobileVal);
+                    form.put("Attached document count", String.valueOf(selectedDocuments.size()));
+                    if ("Asylum application preparation (demo)".equals(option)) {
+                        form.put("Notice", "Preparation only; this app does not lodge asylum claims.");
+                        form.put("Country of origin", value((EditText) findViewById(R.id.formCountry)));
+                        form.put("Notes", value((EditText) findViewById(R.id.formNotes)));
+                    }
 
                     Toast.makeText(this, "Submitting...", Toast.LENGTH_SHORT).show();
                     final long requestGeneration = sessionGeneration;
                     Api.submitApplication(serviceIdFor(option), form, new Api.Callback<Integer>() {
                         @Override public void onSuccess(Integer appId) {
                             if (requestGeneration != sessionGeneration) return;
-                            askToPay(appId);
+                            uploadSelectedDocument(appId, 0);
                         }
                         @Override public void onError(String message) {
                             if (requestGeneration != sessionGeneration) return;
@@ -482,6 +592,62 @@ public class MainActivity extends Activity {
                         }
                     });
                 })
+                .show();
+    }
+
+    private void uploadSelectedDocument(final int appId, final int index) {
+        if (index >= selectedDocuments.size()) {
+            selectedDocuments.clear();
+            askToPay(appId);
+            return;
+        }
+        Uri uri = selectedDocuments.get(index);
+        String mime = getContentResolver().getType(uri);
+        if (mime == null) mime = "application/octet-stream";
+        final String fileType = mime;
+        final String name = getDocumentName(uri);
+        final byte[] bytes;
+        try {
+            bytes = readDocument(uri);
+        } catch (Exception e) {
+            showUploadFailure(appId, index, "Could not read " + name + ". " + e.getMessage());
+            return;
+        }
+        Api.uploadDocument(appId, name, fileType, bytes, new Api.Callback<Boolean>() {
+            @Override public void onSuccess(Boolean ignored) { uploadSelectedDocument(appId, index + 1); }
+            @Override public void onError(String message) { showUploadFailure(appId, index, message); }
+        });
+    }
+
+    private byte[] readDocument(Uri uri) throws IOException {
+        try (InputStream in = getContentResolver().openInputStream(uri);
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            if (in == null) throw new IOException("File could not be opened");
+            byte[] buffer = new byte[8192];
+            int read;
+            while ((read = in.read(buffer)) != -1) {
+                if (out.size() + read > 5 * 1024 * 1024) throw new IOException("Each file must be 5 MB or smaller");
+                out.write(buffer, 0, read);
+            }
+            return out.toByteArray();
+        }
+    }
+
+    private String getDocumentName(Uri uri) {
+        try (Cursor cursor = getContentResolver().query(uri, null, null, null, null)) {
+            if (cursor != null && cursor.moveToFirst()) {
+                int column = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                if (column >= 0) return cursor.getString(column);
+            }
+        } catch (Exception ignored) { }
+        return "supporting-document";
+    }
+
+    private void showUploadFailure(int appId, int index, String message) {
+        new AlertDialog.Builder(this).setTitle("Application #" + appId + " saved")
+                .setMessage("A document could not be uploaded: " + message + " You can retry this file now.")
+                .setPositiveButton("Retry upload", (d, w) -> uploadSelectedDocument(appId, index))
+                .setNegativeButton("Continue", (d, w) -> { selectedDocuments.clear(); askToPay(appId); })
                 .show();
     }
 
@@ -644,7 +810,15 @@ public class MainActivity extends Activity {
         box.setPadding(dp(24), dp(26), dp(24), dp(30));
         scroll.addView(box, new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        setContentView(scroll);
+        FrameLayout frame = new FrameLayout(this);
+        frame.addView(scroll, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        requestProgress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        requestProgress.setIndeterminate(true);
+        requestProgress.setVisibility(View.GONE);
+        frame.addView(requestProgress, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(4), android.view.Gravity.TOP));
+        setContentView(frame);
         buildOfficialList(box);
     }
 

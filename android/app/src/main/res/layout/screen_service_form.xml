@@ -93,6 +93,20 @@
                 android:textColor="@color/text_primary"
                 android:textColorHint="@color/text_secondary" />
             <EditText
+                android:id="@+id/formCountry"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="11dp"
+                android:background="@drawable/bg_input"
+                android:hint="Country of origin"
+                android:inputType="textCapWords"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
+                android:singleLine="true"
+                android:textColor="@color/text_primary"
+                android:textColorHint="@color/text_secondary"
+                android:visibility="gone" />
+            <EditText
                 android:id="@+id/formNotes"
                 android:layout_width="match_parent"
                 android:layout_height="112dp"
@@ -105,11 +119,34 @@
                 android:textColor="@color/text_primary"
                 android:textColorHint="@color/text_secondary" />
             <TextView
+                android:id="@+id/documentGuidance"
                 style="@style/BodyText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
-                android:text="This demo does not submit your information to Home Affairs." />
+                android:text="Supporting documents depend on the service. Check current official requirements; examples only. Use fictional or redacted files in this prototype." />
+            <Button
+                android:id="@+id/uploadDocuments"
+                style="@style/SecondaryButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Choose supporting documents" />
+            <TextView
+                android:id="@+id/selectedDocuments"
+                style="@style/BodyText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text="No documents selected" />
+            <TextView
+                android:id="@+id/asylumNotice"
+                style="@style/BodyText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="Asylum claims are not submitted online here. This is preparation guidance only; first applications are handled in person at a Refugee Reception Office."
+                android:visibility="gone" />
             <Button
                 android:id="@+id/submitApplication"
                 style="@style/PrimaryButton"

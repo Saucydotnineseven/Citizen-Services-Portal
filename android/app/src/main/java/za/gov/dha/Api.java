@@ -22,6 +22,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class Api {
 
@@ -36,6 +37,15 @@ public class Api {
     public interface Callback<T> {
         void onSuccess(T result);
         void onError(String message);
+    }
+
+    public interface LoadingListener { void onLoadingChanged(boolean loading); }
+    private static volatile LoadingListener loadingListener;
+    private static final AtomicInteger activeRequests = new AtomicInteger();
+
+    public static void setLoadingListener(LoadingListener listener) {
+        loadingListener = listener;
+        if (listener != null) listener.onLoadingChanged(activeRequests.get() > 0);
     }
 
     public static class AppInfo {
@@ -82,6 +92,9 @@ public class Api {
             final Callable<T> job,
             final Callback<T> cb) {
 
+        activeRequests.incrementAndGet();
+        LoadingListener listener = loadingListener;
+        if (listener != null) mainHandler.post(() -> listener.onLoadingChanged(true));
         pool.execute(() -> {
             try {
                 final T result = job.call();
@@ -90,6 +103,12 @@ public class Api {
             } catch (final Exception e) {
                 final String msg = friendly(e);
                 mainHandler.post(() -> cb.onError(msg));
+            } finally {
+                if (activeRequests.decrementAndGet() <= 0) {
+                    activeRequests.set(0);
+                    LoadingListener current = loadingListener;
+                    if (current != null) mainHandler.post(() -> current.onLoadingChanged(false));
+                }
             }
         });
     }
@@ -277,6 +296,34 @@ public class Api {
                     request("POST", "/api/applications", body, requestToken)
             ).getInt("applicationId");
 
+        }, cb);
+    }
+
+    public static void uploadDocument(final int applicationId, final String name,
+            final String mime, final byte[] content, Callback<Boolean> cb) {
+        final String requestToken = token;
+        run(() -> {
+            String path = "/api/applications/" + applicationId + "/documents?type="
+                    + URLEncoder.encode("Supporting document", "UTF-8")
+                    + "&name=" + URLEncoder.encode(name, "UTF-8")
+                    + "&mime=" + URLEncoder.encode(mime, "UTF-8");
+            HttpURLConnection c = (HttpURLConnection) new URL(BASE_URL + path).openConnection();
+            c.setRequestMethod("POST");
+            c.setConnectTimeout(30000);
+            c.setReadTimeout(70000);
+            c.setDoOutput(true);
+            c.setRequestProperty("Content-Type", "application/octet-stream");
+            c.setRequestProperty("Authorization", "Bearer " + requestToken);
+            try {
+                try (OutputStream out = c.getOutputStream()) { out.write(content); }
+                int code = c.getResponseCode();
+                String response = read(code >= 400 ? c.getErrorStream() : c.getInputStream());
+                if (code >= 400) {
+                    try { throw new Exception(new JSONObject(response).optString("error", "Upload failed (" + code + ")")); }
+                    catch (org.json.JSONException ignored) { throw new Exception("Upload failed (" + code + ")"); }
+                }
+                return true;
+            } finally { c.disconnect(); }
         }, cb);
     }
 
@@ -525,3 +572,4 @@ public class Api {
         }, cb);
     }
 }
+

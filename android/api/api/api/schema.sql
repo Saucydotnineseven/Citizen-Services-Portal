@@ -97,6 +97,15 @@ CREATE TABLE IF NOT EXISTS documents (
   FOREIGN KEY (application_id) REFERENCES applications(application_id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS document_files (
+  document_id INT PRIMARY KEY,
+  original_name VARCHAR(180) NOT NULL,
+  mime_type VARCHAR(80) NOT NULL,
+  file_size INT NOT NULL,
+  file_content MEDIUMBLOB NOT NULL,
+  FOREIGN KEY (document_id) REFERENCES documents(document_id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS payments (
   payment_id     INT AUTO_INCREMENT PRIMARY KEY,
   application_id INT NOT NULL,
@@ -176,7 +185,9 @@ INSERT IGNORE INTO services
  ('permanent_residence',7,'Permanent Residence Application','Apply for permanent residence.',0,'12+ months',
   '["Passport","Police clearance","Proof of status or relationship"]','["Full name","Passport number","Basis for application","Years in South Africa"]'),
  ('asylum_renewal',8,'Asylum Seeker Permit Renewal','Renew your asylum seeker permit.',0,'Varies',
-  '["Current permit","Photo"]','["Full name","Permit number","Expiry date","Contact number"]');
+  '["Current permit","Photo"]','["Full name","Permit number","Expiry date","Contact number"]'),
+ ('asylum_prepare_demo',8,'Asylum Application Preparation (Demo)','Preparation guidance only. Asylum claims are not lodged through this app.',0,'Varies',
+  '["Identity or travel document (if available)","Supporting information (if available)"]','["Full name","Country of origin","Contact number"]');
 
 INSERT IGNORE INTO branches (branch_id, branch_name, address, city, province) VALUES
  (1,'Johannesburg Branch','Sample Street 1','Johannesburg','Gauteng'),

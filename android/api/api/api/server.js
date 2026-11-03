@@ -20,6 +20,7 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json({ limit: '50kb' }));
+app.use('/api/applications/:id/documents', express.raw({ type: 'application/octet-stream', limit: '5mb' }));
 app.use('/api', (req, res, next) => {
   res.set('Cache-Control', 'no-store');
   next();

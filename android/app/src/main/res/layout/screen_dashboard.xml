@@ -204,6 +204,32 @@
                 android:text="Explore  ›" />
         </LinearLayout>
 
+        <LinearLayout
+            android:id="@+id/serviceAsylum"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="9dp"
+            android:background="@drawable/bg_card"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="15dp"
+            android:visibility="gone">
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Asylum preparation\nGuidance for foreign nationals"
+                android:textColor="@color/text_primary"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+            <Button
+                android:id="@+id/asylumButton"
+                style="@style/TextAction"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Prepare  ›" />
+        </LinearLayout>
+
         <TextView
             style="@style/SectionHeading"
             android:layout_width="match_parent"

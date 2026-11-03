@@ -36,6 +36,15 @@
             android:layout_marginTop="6dp"
             android:text="Set up access to your citizen services. All fields are required." />
 
+        <Spinner
+            android:id="@+id/signupAccountType"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginTop="16dp"
+            android:background="@drawable/bg_input"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp" />
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -63,9 +72,8 @@
                 android:layout_height="52dp"
                 android:layout_marginTop="11dp"
                 android:background="@drawable/bg_input"
-                android:hint="13-digit South African ID number"
-                android:inputType="number"
-                android:maxLength="13"
+                android:hint="South African ID number"
+                android:inputType="textCapCharacters"
                 android:paddingStart="14dp"
                 android:paddingEnd="14dp"
                 android:singleLine="true"

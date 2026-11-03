@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b4936">
   <meta name="description" content="Interactive browser presentation of the Home Affairs Assistant student demo.">
-  <title>Browser Demo | Citizen Services</title>
+  <title>Browser Demo | Home Affairs Assistant App</title>
   <style>
     :root { color-scheme: light; --forest:#0b4936; --green:#18734f; --gold:#d5aa55; --ink:#17231d; --muted:#65726a; --paper:#f6f5f0; --line:#e2e7e1; --soft:#eaf3ed; --white:#fff; }
     * { box-sizing:border-box; }
@@ -70,7 +70,7 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand"><div class="mark" aria-hidden="true">ZA</div><div>Citizen Services<small>HOME AFFAIRS ASSISTANT</small></div></div>
+    <div class="brand"><div class="mark" aria-hidden="true">HA</div><div>Home Affairs Assistant App<small>STUDENT PROJECT DEMONSTRATION</small></div></div>
     <div class="demo-pill">PRESENTATION MODE · SAMPLE DATA</div>
   </header>
   <div class="layout">
@@ -106,7 +106,7 @@
       services: () => `
         <div class="welcome"><div><div class="eyebrow">Explore</div><h1>Services</h1><p>Browse the services represented in this student prototype.</p></div></div>
         <section class="services">
-          ${[['Passport','▣','New applications and renewals.'],['Smart ID card','▤','Identity document services.'],['Birth certificate','▦','Birth registration and certificates.'],['Marriage certificate','♡','Marriage record services.'],['Citizenship','◈','Citizenship information and requests.'],['Appointments','◷','Plan a sample branch visit.']].map(([name,icon,desc])=>`<article class="card"><div class="service-icon">${icon}</div><h3>${name}</h3><p>${desc}</p><button class="small-link" data-action="apply" data-service="${name}">Explore service →</button></article>`).join('')}
+          ${[['Passport','▣','New applications and renewals.'],['Smart ID card','▤','Identity document services.'],['Birth certificate','▦','Birth registration and certificates.'],['Marriage certificate','♡','Marriage record services.'],['Citizenship','◈','Citizenship information and requests.'],['Asylum preparation','◎','Preparation guidance for foreign nationals.'],['Appointments','◷','Plan a sample branch visit.']].map(([name,icon,desc])=>`<article class="card"><div class="service-icon">${icon}</div><h3>${name}</h3><p>${desc}</p><button class="small-link" data-action="apply" data-service="${name}">Explore service →</button></article>`).join('')}
         </section>`,
       applications: () => `
         <div class="welcome"><div><div class="eyebrow">My services</div><h1>Applications</h1><p>Sample progress for a fictional citizen.</p></div></div>
@@ -123,8 +123,8 @@
         <div class="welcome"><div><div class="eyebrow">Prototype boundaries</div><h1>Security notes</h1><p>This presentation mode uses local, fictional examples only.</p></div></div>
         <section class="panel"><h2>What this demo does</h2><p>It runs as a static page in your browser. It does not connect to the account, appointment, or application API routes and does not save the values you enter.</p><h2 style="margin-top:24px">Before handling real information</h2><ul><li>Use TLS everywhere and encrypt sensitive data at rest.</li><li>Keep personal information to the minimum needed and set retention/deletion rules.</li><li>Enforce authorization for every user and every record; keep staff access separate.</li><li>Rate-limit sign-in and registration, protect accounts with strong password hashing and extra verification for staff.</li><li>Keep database credentials and signing keys in server-side secrets; rotate them and restrict access.</li><li>Return generic errors to users, keep detailed logs private, and monitor and patch dependencies.</li><li>Have an incident response plan and assess hosting providers and data-processing agreements.</li></ul><div class="notice">Never use real ID numbers, passwords, biometrics, or payment details in a class presentation. The Android APK is a debug demo, not a production release.</div></section>`,
       apply: service => `
-        <div class="welcome"><div><div class="eyebrow">Service information</div><h1>${escapeText(service)}</h1><p>A preview of the steps a citizen could follow.</p></div></div>
-        <section class="panel"><h2>How the sample flow works</h2><ul class="step-list"><li class="done">Review the service requirements</li><li>Prepare supporting documents</li><li>Submit an application for review</li><li>Track updates and next steps</li></ul><div class="notice">This is a presentation preview. It does not submit a real application or collect identity documents.</div><div class="button-row"><button class="primary" data-action="sample-submit" data-service="${escapeText(service)}">Show sample submission</button><button class="secondary" data-view="services">Back to services</button></div></section>`
+        <div class="welcome"><div><div class="eyebrow">Service information</div><h1>${escapeText(service)}</h1><p>A preview of the steps an applicant could follow.</p></div></div>
+        <section class="panel"><h2>How the sample flow works</h2><ul class="step-list"><li class="done">Review service requirements</li><li>Prepare supporting documents</li><li>Submit an application for review</li><li>Track updates and next steps</li></ul><p>Examples of supporting documents may include proof of address and identity records. Check the current official checklist for the exact service.</p>${service === 'Asylum preparation' ? '<div class="notice">Preparation preview only. This app does not lodge an asylum claim. First asylum applications are handled in person at a Refugee Reception Office.</div>' : ''}<label for="sample-files">Choose sample files (preview only)</label><input id="sample-files" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" multiple><p id="sample-file-names" class="muted-small">Files stay in this browser preview and are not uploaded.</p><div class="notice">This presentation preview does not submit a real application or upload documents.</div><div class="button-row"><button class="primary" data-action="sample-submit" data-service="${escapeText(service)}">Show sample submission</button><button class="secondary" data-view="services">Back to services</button></div></section>`
     };
     function escapeText(value) { return String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
     function render(name, extra) {
@@ -148,6 +148,14 @@
       if (!action) return;
       if (action.dataset.action === 'apply') render('apply', action.dataset.service);
       if (action.dataset.action === 'sample-submit') toast(`Sample ${action.dataset.service} flow completed. Nothing was submitted or saved.`);
+    });
+    document.addEventListener('change', event => {
+      if (event.target.id === 'sample-files') {
+        const files = [...event.target.files].map(file => file.name);
+        document.getElementById('sample-file-names').textContent = files.length
+          ? `Selected in browser only: ${files.join(', ')}`
+          : 'Files stay in this browser preview and are not uploaded.';
+      }
     });
     document.addEventListener('submit', event => {
       if (event.target.id !== 'appointment-form') return;

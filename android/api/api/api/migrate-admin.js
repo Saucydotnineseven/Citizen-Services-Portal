@@ -30,6 +30,28 @@ async function migrateAdmin(db = pool) {
       FOREIGN KEY (target_user_id) REFERENCES users(user_id) ON DELETE SET NULL
     )
   `);
+  await db.query(
+    `INSERT IGNORE INTO services
+      (service_id, category_id, service_name, description, fee, processing_time, required_documents, required_fields)
+     VALUES (?, ?, ?, ?, 0, ?, ?, ?)`,
+    [
+      'asylum_prepare_demo', 8, 'Asylum Application Preparation (Demo)',
+      'Preparation guidance only. Asylum claims are not lodged through this app.',
+      'Varies',
+      JSON.stringify(['Identity or travel document (if available)', 'Supporting information (if available)']),
+      JSON.stringify(['Full name', 'Country of origin', 'Contact number'])
+    ]
+  );
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS document_files (
+      document_id INT PRIMARY KEY,
+      original_name VARCHAR(180) NOT NULL,
+      mime_type VARCHAR(80) NOT NULL,
+      file_size INT NOT NULL,
+      file_content MEDIUMBLOB NOT NULL,
+      FOREIGN KEY (document_id) REFERENCES documents(document_id) ON DELETE CASCADE
+    )
+  `);
   console.log('Admin account-management migration complete');
 }
 

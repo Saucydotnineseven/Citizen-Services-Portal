@@ -6,13 +6,13 @@
     android:orientation="horizontal">
 
     <TextView
-        android:layout_width="52dp"
-        android:layout_height="52dp"
+        android:layout_width="58dp"
+        android:layout_height="58dp"
         android:background="@drawable/bg_mark"
         android:gravity="center"
-        android:text="ZA"
+        android:text="HA"
         android:textColor="@color/surface"
-        android:textSize="17sp"
+        android:textSize="19sp"
         android:textStyle="bold" />
 
     <LinearLayout
@@ -29,6 +29,16 @@
             android:textColor="@color/forest"
             android:textSize="12sp"
             android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="HOME AFFAIRS ASSISTANT"
+            android:textColor="@color/forest"
+            android:textSize="15sp"
+            android:fontFamily="sans-serif-black"
+            android:letterSpacing="0.015" />
 
         <TextView
             android:layout_width="wrap_content"

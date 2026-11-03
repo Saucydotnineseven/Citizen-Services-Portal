@@ -118,7 +118,7 @@ module.exports = function (app) {
       role
     } = req.body;
 
-    if (!idNumber || !email || !password ||
+    if (!idNumber || String(idNumber).length > 20 || !email || !password ||
         password.length < 6 || !firstName) {
       return res.status(400).json({
         error: 'Fill in all fields (password 6+ characters)'
@@ -276,6 +276,57 @@ module.exports = function (app) {
 
     } finally {
       if (conn) conn.release();
+    }
+  });
+
+  // Store demo attachments against an application owned by the signed-in user.
+  app.post('/api/applications/:id/documents', requireLogin, async (req, res) => {
+    const appId = Number(req.params.id);
+    const bytes = req.body;
+    const mime = String(req.query.mime || '').toLowerCase();
+    const name = String(req.query.name || 'document').replace(/[^A-Za-z0-9._ -]/g, '_').slice(0, 180);
+    const docType = String(req.query.type || 'Supporting document').slice(0, 80);
+    if (!Number.isInteger(appId) || appId < 1 || !Buffer.isBuffer(bytes) || bytes.length < 1 || bytes.length > 5 * 1024 * 1024) {
+      return res.status(400).json({ error: 'Choose a file up to 5 MB.' });
+    }
+    if (!['application/pdf', 'image/jpeg', 'image/png'].includes(mime)) {
+      return res.status(415).json({ error: 'Use a PDF, JPEG, or PNG file.' });
+    }
+    const signatureOk = mime === 'application/pdf'
+      ? bytes.subarray(0, 5).toString('ascii') === '%PDF-'
+      : mime === 'image/jpeg'
+        ? bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff
+        : bytes[0] === 0x89 && bytes.subarray(1, 4).toString('ascii') === 'PNG';
+    if (!signatureOk) return res.status(415).json({ error: 'The file contents do not match its selected file type.' });
+    try {
+      const [owned] = await pool.query(
+        'SELECT application_id FROM applications WHERE application_id = ? AND user_id = ?',
+        [appId, req.user.userId]
+      );
+      if (!owned.length) return res.status(404).json({ error: 'Application not found.' });
+      const [count] = await pool.query('SELECT COUNT(*) AS total FROM documents WHERE application_id = ?', [appId]);
+      if (count[0].total >= 10) return res.status(413).json({ error: 'An application can have at most 10 files.' });
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+        const [insert] = await conn.query(
+          "INSERT INTO documents (application_id, document_type, file_path) VALUES (?, ?, 'database')",
+          [appId, docType]
+        );
+        await conn.query(
+          'INSERT INTO document_files (document_id, original_name, mime_type, file_size, file_content) VALUES (?, ?, ?, ?, ?)',
+          [insert.insertId, name, mime, bytes.length, bytes]
+        );
+        await conn.commit();
+        return res.status(201).json({ documentId: insert.insertId });
+      } catch (error) {
+        await conn.rollback();
+        throw error;
+      } finally {
+        conn.release();
+      }
+    } catch (error) {
+      return sendServerError(req, res, error);
     }
   });
 
